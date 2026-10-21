@@ -1,0 +1,37 @@
+name: fayma
+description: Gestion du crédit pour les boutiques de quartier (hors connexion d'abord).
+publish_to: "none"
+version: 0.1.0+1
+
+environment:
+  sdk: ">=3.3.0 <4.0.0"
+
+dependencies:
+  flutter:
+    sdk: flutter
+  flutter_localizations:
+    sdk: flutter
+
+  # Navigation
+  go_router: ^14.2.0
+  # Gestion d'état
+  flutter_riverpod: ^2.5.1
+  # Formats FCFA et dates (fr)
+  intl: ^0.20.3
+  # Import depuis le répertoire du téléphone
+  flutter_contacts: ^1.1.9+2
+  # Stockage local SQLite (Android, iOS, Linux, ...)
+  sqlite3: ^2.4.0
+  sqlite3_flutter_libs: ^0.5.24
+  path_provider: ^2.1.4
+  path: ^1.9.0
+  # Ouvre l'application SMS avec le message pré-rempli
+  url_launcher: ^6.3.0
+  # Permission d'envoyer des SMS (Android)
+dev_dependencies:
+  flutter_test:
+    sdk: flutter
+  flutter_lints: ^4.0.0
+
+flutter:
+  uses-material-design: true
