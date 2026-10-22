@@ -15,6 +15,7 @@ import '../services/backup/backup_service.dart';
 import '../services/backup/recovery_code.dart';
 import '../theme/app_theme.dart';
 import '../utils/format.dart';
+import '../widgets/app_widgets.dart';
 
 /// Export et restauration manuels d'une sauvegarde chiffrée.
 class BackupScreen extends ConsumerStatefulWidget {
@@ -190,35 +191,47 @@ class _BackupScreenState extends ConsumerState<BackupScreen> {
             mainAxisSize: MainAxisSize.min,
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              _PreviewLine(label: 'Fichier', value: preview.sourceName),
-              _PreviewLine(
-                label: 'Date',
-                value: formatDate(payload.createdAt),
-              ),
-              _PreviewLine(label: 'Version', value: payload.appVersion),
-              _PreviewLine(
-                label: 'Clients',
-                value: '${payload.clientCount}',
-              ),
-              _PreviewLine(
-                label: 'Opérations',
-                value: '${payload.operationCount}',
-              ),
-              const SizedBox(height: 16),
-              Container(
-                padding: const EdgeInsets.all(12),
-                decoration: BoxDecoration(
-                  color: AppColors.coralSoft,
-                  borderRadius: BorderRadius.circular(12),
+              FaymaCard(
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 14,
+                  vertical: 10,
                 ),
-                child: Text(
-                  'Toutes les données actuelles de l\'application seront '
-                  'remplacées par celles de cette sauvegarde.',
-                  style: Theme.of(dialogContext).textTheme.bodySmall?.copyWith(
-                        color: AppColors.coral,
-                        fontWeight: FontWeight.w600,
-                      ),
+                child: Column(
+                  children: [
+                    AppKeyValueRow(
+                      label: 'Fichier',
+                      value: preview.sourceName,
+                    ),
+                    const Divider(),
+                    AppKeyValueRow(
+                      label: 'Date',
+                      value: formatDate(payload.createdAt),
+                    ),
+                    const Divider(),
+                    AppKeyValueRow(
+                      label: 'Version',
+                      value: payload.appVersion,
+                    ),
+                    const Divider(),
+                    AppKeyValueRow(
+                      label: 'Clients',
+                      value: '${payload.clientCount}',
+                    ),
+                    const Divider(),
+                    AppKeyValueRow(
+                      label: 'Opérations',
+                      value: '${payload.operationCount}',
+                    ),
+                  ],
                 ),
+              ),
+              const SizedBox(height: 14),
+              const AppInfoBanner(
+                icon: Icons.warning_amber_rounded,
+                message: 'Toutes les données actuelles de l’application '
+                    'seront remplacées par celles de cette sauvegarde.',
+                color: AppColors.coral,
+                background: AppColors.coralSoft,
               ),
             ],
           ),
@@ -276,21 +289,27 @@ class _BackupScreenState extends ConsumerState<BackupScreen> {
                 key: const Key('backup-list'),
                 padding: const EdgeInsets.fromLTRB(
                   AppTheme.pagePadding,
-                  8,
+                  4,
                   AppTheme.pagePadding,
                   32,
                 ),
                 children: [
-                  const _IntroCard(),
-                  const SizedBox(height: 26),
-                  Text('Code de récupération', style: textTheme.titleMedium),
-                  const SizedBox(height: 6),
-                  Text(
-                    'Il est indispensable pour ouvrir vos sauvegardes, '
-                    'notamment après une réinstallation.',
-                    style: textTheme.bodySmall,
+                  const AppInfoBanner(
+                    icon: Icons.lock_outline_rounded,
+                    title: 'Vos données restent privées',
+                    message: 'La sauvegarde est chiffrée sur votre téléphone '
+                        'avant d’être enregistrée. Sans votre code de '
+                        'récupération, elle est illisible.',
+                    color: AppColors.mintDark,
+                    background: AppColors.mintSoft,
                   ),
-                  const SizedBox(height: 14),
+                  const SizedBox(height: 24),
+                  const AppSectionHeader(
+                    title: 'Code de récupération',
+                    subtitle: 'Indispensable pour ouvrir vos sauvegardes, '
+                        'notamment après une réinstallation.',
+                  ),
+                  const SizedBox(height: 12),
                   if (_code != null)
                     _RecoveryCodeCard(
                       code: _code!,
@@ -303,40 +322,27 @@ class _BackupScreenState extends ConsumerState<BackupScreen> {
                     )
                   else
                     const _CodeLoadingCard(),
-                  const SizedBox(height: 30),
-                  Text('Exporter mes données', style: textTheme.titleMedium),
-                  const SizedBox(height: 6),
-                  Text(
-                    'Créez un fichier chiffré, puis enregistrez-le dans votre '
-                    'Google Drive, par e-mail ou sur un autre téléphone.',
-                    style: textTheme.bodySmall,
-                  ),
-                  const SizedBox(height: 14),
-                  FilledButton.icon(
-                    onPressed: canAct ? _export : null,
-                    icon: const Icon(Icons.ios_share_outlined),
-                    label: const Text('Exporter une sauvegarde'),
+                  const SizedBox(height: 26),
+                  const AppSectionHeader(
+                    title: 'Exporter mes données',
+                    subtitle: 'Créez un fichier chiffré, puis enregistrez-le '
+                        'dans Google Drive, par e-mail ou sur un autre '
+                        'téléphone.',
                   ),
                   const SizedBox(height: 12),
+                  FilledButton.icon(
+                    onPressed: canAct ? _export : null,
+                    icon: const Icon(Icons.ios_share_outlined, size: 20),
+                    label: const Text('Exporter une sauvegarde'),
+                  ),
+                  const SizedBox(height: 10),
                   OutlinedButton.icon(
                     onPressed: canAct ? _import : null,
-                    style: OutlinedButton.styleFrom(
-                      minimumSize: const Size.fromHeight(AppTheme.buttonHeight),
-                      foregroundColor: AppColors.textPrimary,
-                      side: const BorderSide(color: AppColors.border),
-                      shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(AppTheme.radius),
-                      ),
-                      textStyle: const TextStyle(
-                        fontSize: 16,
-                        fontWeight: FontWeight.w600,
-                      ),
-                    ),
-                    icon: const Icon(Icons.restore_outlined),
+                    icon: const Icon(Icons.restore_outlined, size: 20),
                     label: const Text('Restaurer une sauvegarde'),
                   ),
                   if (_lastBackup != null) ...[
-                    const SizedBox(height: 12),
+                    const SizedBox(height: 10),
                     Center(
                       child: Text(
                         'Dernière sauvegarde : ${formatDate(_lastBackup!)}',
@@ -345,7 +351,15 @@ class _BackupScreenState extends ConsumerState<BackupScreen> {
                     ),
                   ],
                   const SizedBox(height: 20),
-                  const _DriveNote(),
+                  const AppInfoBanner(
+                    icon: Icons.cloud_outlined,
+                    title: 'Google Drive bientôt automatique',
+                    message: 'La sauvegarde automatique vers Google Drive '
+                        'sera ajoutée dans une prochaine étape. En attendant, '
+                        'exportez régulièrement votre fichier.',
+                    color: AppColors.indigo,
+                    background: AppColors.indigoSoft,
+                  ),
                 ],
               ),
             ),
@@ -411,6 +425,7 @@ class _RecoveryCodeDialogState extends State<_RecoveryCodeDialog> {
               decoration: InputDecoration(
                 hintText: 'ABCD-EFGH-JKMN-...',
                 errorText: _error,
+                prefixIcon: const Icon(Icons.key_outlined),
               ),
               style: const TextStyle(
                 fontFamily: 'monospace',
@@ -435,50 +450,6 @@ class _RecoveryCodeDialogState extends State<_RecoveryCodeDialog> {
   }
 }
 
-class _IntroCard extends StatelessWidget {
-  const _IntroCard();
-
-  @override
-  Widget build(BuildContext context) {
-    final textTheme = Theme.of(context).textTheme;
-    return Container(
-      padding: const EdgeInsets.all(18),
-      decoration: BoxDecoration(
-        color: AppColors.mintSoft,
-        borderRadius: BorderRadius.circular(18),
-      ),
-      child: Row(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          const Icon(Icons.lock_outline, color: AppColors.mintDark),
-          const SizedBox(width: 12),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  'Vos données restent privées',
-                  style: textTheme.bodyMedium?.copyWith(
-                    fontWeight: FontWeight.w700,
-                    color: AppColors.mintDark,
-                  ),
-                ),
-                const SizedBox(height: 4),
-                Text(
-                  'La sauvegarde est chiffrée sur votre téléphone avant '
-                  'd\'être enregistrée. Sans votre code de récupération, '
-                  'elle est illisible.',
-                  style: textTheme.bodySmall,
-                ),
-              ],
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-}
-
 class _RecoveryCodeCard extends StatelessWidget {
   const _RecoveryCodeCard({required this.code, required this.onCopy});
 
@@ -488,13 +459,9 @@ class _RecoveryCodeCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final textTheme = Theme.of(context).textTheme;
-    return Container(
-      padding: const EdgeInsets.fromLTRB(18, 16, 10, 16),
-      decoration: BoxDecoration(
-        color: AppColors.surface,
-        borderRadius: BorderRadius.circular(AppTheme.radius),
-        border: Border.all(color: AppColors.border),
-      ),
+    return FaymaCard(
+      gradient: AppGradients.ink,
+      padding: const EdgeInsets.fromLTRB(18, 14, 12, 16),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
@@ -503,16 +470,21 @@ class _RecoveryCodeCard extends StatelessWidget {
               Expanded(
                 child: Text(
                   'Votre code',
-                  style: textTheme.bodySmall?.copyWith(
-                    color: AppColors.textPrimary,
-                    fontWeight: FontWeight.w600,
+                  style: textTheme.labelMedium?.copyWith(
+                    color: Colors.white.withValues(alpha: 0.68),
+                    letterSpacing: 0.6,
                   ),
                 ),
               ),
               IconButton(
                 onPressed: onCopy,
                 tooltip: 'Copier le code',
-                icon: const Icon(Icons.copy_outlined, size: 20),
+                style: IconButton.styleFrom(
+                  backgroundColor: Colors.white.withValues(alpha: 0.1),
+                  foregroundColor: AppColors.mintBright,
+                  minimumSize: const Size(40, 40),
+                ),
+                icon: const Icon(Icons.copy_outlined, size: 18),
               ),
             ],
           ),
@@ -524,22 +496,40 @@ class _RecoveryCodeCard extends StatelessWidget {
               fontSize: 16,
               fontWeight: FontWeight.w700,
               letterSpacing: 1.1,
+              color: Colors.white,
+              height: 1.5,
             ),
           ),
           const SizedBox(height: 12),
           Container(
-            padding: const EdgeInsets.all(12),
+            padding: const EdgeInsets.all(11),
             decoration: BoxDecoration(
-              color: AppColors.coralSoft,
+              color: Colors.white.withValues(alpha: 0.07),
               borderRadius: BorderRadius.circular(12),
-            ),
-            child: Text(
-              'Notez ce code et gardez-le en lieu sûr. Sans lui, personne '
-              'ne peut restaurer la sauvegarde, pas même Fayma.',
-              style: textTheme.bodySmall?.copyWith(
-                color: AppColors.coral,
-                fontWeight: FontWeight.w600,
+              border: Border.all(
+                color: Colors.white.withValues(alpha: 0.1),
               ),
+            ),
+            child: Row(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                const Icon(
+                  Icons.warning_amber_rounded,
+                  size: 17,
+                  color: AppColors.coralBright,
+                ),
+                const SizedBox(width: 7),
+                Expanded(
+                  child: Text(
+                    'Notez ce code et gardez-le hors du téléphone. Sans lui, '
+                    'personne ne peut restaurer la sauvegarde.',
+                    style: textTheme.bodySmall?.copyWith(
+                      color: Colors.white.withValues(alpha: 0.72),
+                      height: 1.35,
+                    ),
+                  ),
+                ),
+              ],
             ),
           ),
         ],
@@ -553,13 +543,9 @@ class _CodeLoadingCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Container(
-      height: 92,
-      decoration: BoxDecoration(
-        color: AppColors.surface,
-        borderRadius: BorderRadius.circular(AppTheme.radius),
-      ),
-      child: const Center(child: CircularProgressIndicator()),
+    return const FaymaCard(
+      padding: EdgeInsets.symmetric(vertical: 20),
+      child: AppLoading(label: 'Préparation du code…'),
     );
   }
 }
@@ -572,14 +558,16 @@ class _LoadErrorCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Container(
-      padding: const EdgeInsets.all(16),
-      decoration: BoxDecoration(
-        color: AppColors.surface,
-        borderRadius: BorderRadius.circular(AppTheme.radius),
-      ),
+    return FaymaCard(
+      padding: const EdgeInsets.all(14),
       child: Row(
         children: [
+          const Icon(
+            Icons.error_outline_rounded,
+            color: AppColors.coral,
+            size: 20,
+          ),
+          const SizedBox(width: 10),
           Expanded(
             child: Text(
               message,
@@ -593,67 +581,6 @@ class _LoadErrorCard extends StatelessWidget {
   }
 }
 
-class _DriveNote extends StatelessWidget {
-  const _DriveNote();
-
-  @override
-  Widget build(BuildContext context) {
-    return Row(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        const Icon(
-          Icons.cloud_outlined,
-          size: 18,
-          color: AppColors.textSecondary,
-        ),
-        const SizedBox(width: 8),
-        Expanded(
-          child: Text(
-            'La sauvegarde automatique vers Google Drive sera ajoutée dans '
-            'une prochaine étape. En attendant, exportez régulièrement votre '
-            'fichier.',
-            style: Theme.of(context).textTheme.bodySmall,
-          ),
-        ),
-      ],
-    );
-  }
-}
-
-class _PreviewLine extends StatelessWidget {
-  const _PreviewLine({required this.label, required this.value});
-
-  final String label;
-  final String value;
-
-  @override
-  Widget build(BuildContext context) {
-    return Padding(
-      padding: const EdgeInsets.only(bottom: 6),
-      child: Row(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          SizedBox(
-            width: 78,
-            child: Text(
-              label,
-              style: Theme.of(context).textTheme.bodySmall,
-            ),
-          ),
-          Expanded(
-            child: Text(
-              value,
-              style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                    fontWeight: FontWeight.w600,
-                  ),
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-}
-
 class _BusyOverlay extends StatelessWidget {
   const _BusyOverlay();
 
@@ -661,20 +588,19 @@ class _BusyOverlay extends StatelessWidget {
   Widget build(BuildContext context) {
     return Positioned.fill(
       child: ColoredBox(
-        color: Colors.black26,
-        child: Center(
-          child: Container(
-            padding: const EdgeInsets.symmetric(horizontal: 28, vertical: 24),
-            decoration: BoxDecoration(
-              color: AppColors.surface,
-              borderRadius: BorderRadius.circular(18),
+        color: Colors.black.withValues(alpha: 0.28),
+        child: const Center(
+          child: FaymaCard(
+            padding: EdgeInsets.symmetric(
+              horizontal: 28,
+              vertical: 24,
             ),
-            child: const Column(
+            child: Column(
               mainAxisSize: MainAxisSize.min,
               children: [
                 CircularProgressIndicator(),
                 SizedBox(height: 16),
-                Text('Traitement en cours...'),
+                Text('Traitement en cours…'),
               ],
             ),
           ),

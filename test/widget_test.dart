@@ -85,7 +85,7 @@ void main() {
     expect(find.text('ABCD-2345-EFGH-6789-JKMN-2345'), findsOneWidget);
     await tester.drag(
       find.byKey(const Key('backup-list')),
-      const Offset(0, -400),
+      const Offset(0, -1000),
     );
     await tester.pumpAndSettle();
     expect(find.text('Exporter une sauvegarde'), findsOneWidget);

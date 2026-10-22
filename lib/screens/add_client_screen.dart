@@ -9,6 +9,7 @@ import '../providers.dart';
 import '../router/app_router.dart';
 import '../theme/app_theme.dart';
 import '../utils/format.dart';
+import '../widgets/app_widgets.dart';
 
 /// Écran 02 - Ajouter un client : import depuis les contacts ou saisie manuelle.
 class AddClientScreen extends ConsumerStatefulWidget {
@@ -111,7 +112,7 @@ class _AddClientScreenState extends ConsumerState<AddClientScreen> {
               child: SingleChildScrollView(
                 padding: const EdgeInsets.fromLTRB(
                   AppTheme.pagePadding,
-                  8,
+                  4,
                   AppTheme.pagePadding,
                   16,
                 ),
@@ -122,55 +123,131 @@ class _AddClientScreenState extends ConsumerState<AddClientScreen> {
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.stretch,
                     children: [
-                      _ImportButton(onPressed: _importFromContacts),
-                      const SizedBox(height: 24),
-                      Center(
-                        child: Text(
-                          'ou saisir manuellement',
-                          style: textTheme.bodySmall,
-                        ),
+                      const AppInfoBanner(
+                        icon: Icons.person_add_alt_1_outlined,
+                        title: 'Un nouveau client',
+                        message: 'Ajoutez ses coordonnées pour suivre ses '
+                            'achats à crédit et ses paiements.',
+                        color: AppColors.mintDark,
+                        background: AppColors.mintSoft,
                       ),
-                      const SizedBox(height: 24),
-                      _LabeledField(
-                        label: 'Nom',
-                        child: TextFormField(
-                          controller: _nomController,
-                          textCapitalization: TextCapitalization.words,
-                          textInputAction: TextInputAction.next,
-                          decoration:
-                              const InputDecoration(hintText: 'Ex : Diop'),
-                          validator: (v) => _validateName(v, 'Nom'),
-                        ),
-                      ),
-                      const SizedBox(height: 18),
-                      _LabeledField(
-                        label: 'Prénom',
-                        child: TextFormField(
-                          controller: _prenomController,
-                          textCapitalization: TextCapitalization.words,
-                          textInputAction: TextInputAction.next,
-                          decoration:
-                              const InputDecoration(hintText: 'Ex : Moussa'),
-                          validator: (v) => _validateName(v, 'Prénom'),
-                        ),
-                      ),
-                      const SizedBox(height: 18),
-                      _LabeledField(
-                        label: 'Numéro de téléphone',
-                        child: TextFormField(
-                          controller: _phoneController,
-                          keyboardType: TextInputType.phone,
-                          textInputAction: TextInputAction.done,
-                          inputFormatters: [
-                            FilteringTextInputFormatter.allow(
-                              RegExp(r'[0-9 +]'),
+                      const SizedBox(height: 16),
+                      FaymaCard(
+                        onTap: _importFromContacts,
+                        padding: const EdgeInsets.all(15),
+                        child: Row(
+                          children: [
+                            Container(
+                              width: 44,
+                              height: 44,
+                              decoration: BoxDecoration(
+                                color: AppColors.indigoSoft,
+                                borderRadius: BorderRadius.circular(13),
+                              ),
+                              child: const Icon(
+                                Icons.contacts_outlined,
+                                color: AppColors.indigo,
+                                size: 22,
+                              ),
+                            ),
+                            const SizedBox(width: 12),
+                            Expanded(
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  Text(
+                                    'Importer depuis mes contacts',
+                                    style: textTheme.titleSmall,
+                                  ),
+                                  const SizedBox(height: 2),
+                                  Text(
+                                    'Prénom, nom et numéro remplis '
+                                    'automatiquement',
+                                    style: textTheme.bodySmall,
+                                  ),
+                                ],
+                              ),
+                            ),
+                            const Icon(
+                              Icons.chevron_right_rounded,
+                              color: AppColors.textSecondary,
                             ),
                           ],
-                          decoration: const InputDecoration(
-                            hintText: 'Ex : 77 123 45 67',
+                        ),
+                      ),
+                      const SizedBox(height: 22),
+                      Row(
+                        children: [
+                          const Expanded(child: Divider()),
+                          Padding(
+                            padding: const EdgeInsets.symmetric(horizontal: 12),
+                            child: Text(
+                              'ou saisir manuellement',
+                              style: textTheme.bodySmall,
+                            ),
                           ),
-                          validator: _validatePhone,
-                          onFieldSubmitted: (_) => _save(),
+                          const Expanded(child: Divider()),
+                        ],
+                      ),
+                      const SizedBox(height: 18),
+                      FaymaCard(
+                        padding: const EdgeInsets.all(17),
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.stretch,
+                          children: [
+                            _LabeledField(
+                              label: 'Nom',
+                              child: TextFormField(
+                                controller: _nomController,
+                                textCapitalization: TextCapitalization.words,
+                                textInputAction: TextInputAction.next,
+                                autofillHints: const [AutofillHints.familyName],
+                                decoration: const InputDecoration(
+                                  hintText: 'Ex : Diop',
+                                  prefixIcon: Icon(Icons.person_outline),
+                                ),
+                                validator: (v) => _validateName(v, 'Nom'),
+                              ),
+                            ),
+                            const SizedBox(height: 16),
+                            _LabeledField(
+                              label: 'Prénom',
+                              child: TextFormField(
+                                controller: _prenomController,
+                                textCapitalization: TextCapitalization.words,
+                                textInputAction: TextInputAction.next,
+                                autofillHints: const [AutofillHints.givenName],
+                                decoration: const InputDecoration(
+                                  hintText: 'Ex : Moussa',
+                                  prefixIcon: Icon(Icons.badge_outlined),
+                                ),
+                                validator: (v) => _validateName(v, 'Prénom'),
+                              ),
+                            ),
+                            const SizedBox(height: 16),
+                            _LabeledField(
+                              label: 'Numéro de téléphone',
+                              child: TextFormField(
+                                controller: _phoneController,
+                                keyboardType: TextInputType.phone,
+                                textInputAction: TextInputAction.done,
+                                autofillHints: const [
+                                  AutofillHints.telephoneNumber,
+                                ],
+                                inputFormatters: [
+                                  FilteringTextInputFormatter.allow(
+                                    RegExp(r'[0-9 +]'),
+                                  ),
+                                ],
+                                decoration: const InputDecoration(
+                                  hintText: 'Ex : 77 123 45 67',
+                                  prefixIcon: Icon(Icons.phone_outlined),
+                                ),
+                                validator: _validatePhone,
+                                onFieldSubmitted: (_) => _save(),
+                              ),
+                            ),
+                          ],
                         ),
                       ),
                     ],
@@ -185,62 +262,22 @@ class _AddClientScreenState extends ConsumerState<AddClientScreen> {
                 AppTheme.pagePadding,
                 20,
               ),
-              child: FilledButton(
+              child: FilledButton.icon(
                 onPressed: _saving ? null : _save,
-                child: _saving
+                icon: _saving
                     ? const SizedBox(
-                        width: 22,
-                        height: 22,
+                        width: 20,
+                        height: 20,
                         child: CircularProgressIndicator(
-                          strokeWidth: 2.5,
+                          strokeWidth: 2.4,
                           color: Colors.white,
                         ),
                       )
-                    : const Text('Ajouter le client'),
+                    : const Icon(Icons.person_add_alt_1_rounded, size: 20),
+                label: Text(_saving ? 'Enregistrement…' : 'Ajouter le client'),
               ),
             ),
           ],
-        ),
-      ),
-    );
-  }
-}
-
-/// Bouton « Importer depuis mes contacts » (fond indigo clair, comme la maquette).
-class _ImportButton extends StatelessWidget {
-  const _ImportButton({required this.onPressed});
-
-  final VoidCallback onPressed;
-
-  @override
-  Widget build(BuildContext context) {
-    return Material(
-      color: AppColors.indigoSoft,
-      borderRadius: BorderRadius.circular(AppTheme.radius),
-      child: InkWell(
-        borderRadius: BorderRadius.circular(AppTheme.radius),
-        onTap: onPressed,
-        child: Container(
-          height: 52,
-          decoration: BoxDecoration(
-            borderRadius: BorderRadius.circular(AppTheme.radius),
-            border: Border.all(color: AppColors.indigo),
-          ),
-          child: const Row(
-            mainAxisAlignment: MainAxisAlignment.center,
-            children: [
-              Icon(Icons.contacts_outlined, color: AppColors.indigo, size: 22),
-              SizedBox(width: 10),
-              Text(
-                'Importer depuis mes contacts',
-                style: TextStyle(
-                  color: AppColors.indigo,
-                  fontSize: 14,
-                  fontWeight: FontWeight.w600,
-                ),
-              ),
-            ],
-          ),
         ),
       ),
     );
@@ -260,12 +297,11 @@ class _LabeledField extends StatelessWidget {
       children: [
         Text(
           label,
-          style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                color: AppColors.textPrimary,
-                fontWeight: FontWeight.w600,
+          style: Theme.of(context).textTheme.titleSmall?.copyWith(
+                fontSize: 13,
               ),
         ),
-        const SizedBox(height: 8),
+        const SizedBox(height: 7),
         child,
       ],
     );

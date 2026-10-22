@@ -10,6 +10,7 @@ import '../providers.dart';
 import '../services/operation_sms.dart';
 import '../theme/app_theme.dart';
 import '../utils/format.dart';
+import '../widgets/app_widgets.dart';
 
 /// Écran 04 - Nouvel achat à crédit : lignes produit/prix, total, validation.
 class PurchaseScreen extends ConsumerStatefulWidget {
@@ -101,19 +102,33 @@ class _PurchaseScreenState extends ConsumerState<PurchaseScreen> {
     return Scaffold(
       appBar: AppBar(
         title: Text(
-          'Nouvel achat à crédit',
+          'Nouvel achat',
           style: Theme.of(context).textTheme.headlineSmall,
         ),
       ),
       body: SafeArea(
         child: summaryAsync.when(
-          loading: () => const Center(child: CircularProgressIndicator()),
+          loading: () => const AppLoading(label: 'Chargement du client…'),
           error: (_, __) => const Center(
-            child: Text('Impossible de charger le client.'),
+            child: AppEmptyState(
+              icon: Icons.cloud_off_rounded,
+              title: 'Client indisponible',
+              message: 'Impossible de charger les informations du client.',
+              color: AppColors.coral,
+              background: AppColors.coralSoft,
+            ),
           ),
           data: (summary) {
             if (summary == null) {
-              return const Center(child: Text('Client introuvable.'));
+              return const Center(
+                child: AppEmptyState(
+                  icon: Icons.person_off_outlined,
+                  title: 'Client introuvable',
+                  message: 'Ce client n’existe plus dans votre boutique.',
+                  color: AppColors.indigo,
+                  background: AppColors.indigoSoft,
+                ),
+              );
             }
             return _buildContent(context, summary);
           },
@@ -138,42 +153,153 @@ class _PurchaseScreenState extends ConsumerState<PurchaseScreen> {
           child: ListView(
             padding: const EdgeInsets.fromLTRB(
               AppTheme.pagePadding,
-              8,
+              4,
               AppTheme.pagePadding,
               16,
             ),
             keyboardDismissBehavior: ScrollViewKeyboardDismissBehavior.onDrag,
             children: [
-              Text(
-                summary.client.fullName,
-                style: textTheme.bodyMedium?.copyWith(
-                  color: AppColors.indigo,
-                  fontWeight: FontWeight.w600,
+              FaymaCard(
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 13,
+                  vertical: 11,
+                ),
+                child: Row(
+                  children: [
+                    ClientAvatar(name: summary.client.fullName, size: 38),
+                    const SizedBox(width: 10),
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            summary.client.fullName,
+                            overflow: TextOverflow.ellipsis,
+                            style: textTheme.titleSmall,
+                          ),
+                          const SizedBox(height: 1),
+                          Text(
+                            'Dette actuelle : ${formatFcfa(balance.debt)}',
+                            style: textTheme.bodySmall,
+                          ),
+                        ],
+                      ),
+                    ),
+                    AppStatusPill(
+                      label: overLimit ? 'Plafond dépassé' : 'À crédit',
+                      color: overLimit ? AppColors.coral : AppColors.indigo,
+                      background: overLimit
+                          ? AppColors.coralSoft
+                          : AppColors.indigoSoft,
+                      compact: true,
+                    ),
+                  ],
                 ),
               ),
               const SizedBox(height: 16),
-              _InputRow(
-                productController: _productController,
-                priceController: _priceController,
-                productFocus: _productFocus,
-                onAdd: _addItem,
-              ),
-              if (_inputError != null) ...[
-                const SizedBox(height: 8),
-                Text(
-                  _inputError!,
-                  style: textTheme.bodySmall?.copyWith(color: AppColors.coral),
-                ),
-              ],
-              const SizedBox(height: 20),
-              if (_items.isEmpty)
-                Padding(
-                  padding: const EdgeInsets.symmetric(vertical: 24),
-                  child: Center(
-                    child: Text(
-                      'Ajoutez les produits pris à crédit.',
-                      style: textTheme.bodySmall,
+              FaymaCard(
+                padding: const EdgeInsets.all(16),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  children: [
+                    Text(
+                      'Ajouter un produit',
+                      style: textTheme.titleMedium,
                     ),
+                    const SizedBox(height: 12),
+                    TextField(
+                      controller: _productController,
+                      focusNode: _productFocus,
+                      textCapitalization: TextCapitalization.sentences,
+                      textInputAction: TextInputAction.next,
+                      decoration: const InputDecoration(
+                        hintText: 'Ex : Sac de riz 25 kg',
+                        labelText: 'Produit',
+                        prefixIcon: Icon(Icons.inventory_2_outlined),
+                      ),
+                      onSubmitted: (_) => FocusScope.of(context).nextFocus(),
+                    ),
+                    const SizedBox(height: 10),
+                    Row(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Expanded(
+                          child: TextField(
+                            controller: _priceController,
+                            keyboardType: TextInputType.number,
+                            textInputAction: TextInputAction.done,
+                            inputFormatters: [
+                              FilteringTextInputFormatter.digitsOnly,
+                            ],
+                            style: const TextStyle(
+                              fontSize: 18,
+                              fontWeight: FontWeight.w700,
+                            ),
+                            decoration: const InputDecoration(
+                              hintText: '0',
+                              labelText: 'Prix',
+                              suffixText: 'FCFA',
+                            ),
+                            onSubmitted: (_) => _addItem(),
+                          ),
+                        ),
+                        const SizedBox(width: 10),
+                        SizedBox(
+                          width: 56,
+                          height: 56,
+                          child: IconButton.filled(
+                            onPressed: _addItem,
+                            tooltip: 'Ajouter le produit',
+                            style: IconButton.styleFrom(
+                              backgroundColor: AppColors.indigo,
+                              foregroundColor: Colors.white,
+                              shape: RoundedRectangleBorder(
+                                borderRadius: BorderRadius.circular(14),
+                              ),
+                            ),
+                            icon: const Icon(Icons.add_rounded, size: 24),
+                          ),
+                        ),
+                      ],
+                    ),
+                    if (_inputError != null) ...[
+                      const SizedBox(height: 8),
+                      Text(
+                        _inputError!,
+                        style: textTheme.bodySmall?.copyWith(
+                          color: AppColors.coral,
+                          fontWeight: FontWeight.w600,
+                        ),
+                      ),
+                    ],
+                  ],
+                ),
+              ),
+              const SizedBox(height: 22),
+              AppSectionHeader(
+                title: 'Produits ajoutés',
+                subtitle: _items.isEmpty
+                    ? 'Aucun produit pour le moment'
+                    : '${_items.length} produit'
+                        '${_items.length > 1 ? 's' : ''} dans cet achat',
+                trailing: _items.isEmpty
+                    ? null
+                    : TextButton(
+                        onPressed: () => setState(_items.clear),
+                        child: const Text('Vider'),
+                      ),
+              ),
+              const SizedBox(height: 12),
+              if (_items.isEmpty)
+                const FaymaCard(
+                  padding: EdgeInsets.symmetric(vertical: 4),
+                  child: AppEmptyState(
+                    icon: Icons.shopping_basket_outlined,
+                    title: 'Le panier est vide',
+                    message: 'Ajoutez les produits pris à crédit pour '
+                        'calculer le total.',
+                    color: AppColors.indigo,
+                    background: AppColors.indigoSoft,
                   ),
                 )
               else
@@ -182,145 +308,136 @@ class _PurchaseScreenState extends ConsumerState<PurchaseScreen> {
                     item: _items[i],
                     onRemove: () => setState(() => _items.removeAt(i)),
                   ),
-                  const SizedBox(height: 10),
+                  const SizedBox(height: 9),
                 ],
             ],
           ),
         ),
-        Padding(
-          padding: const EdgeInsets.fromLTRB(
-            AppTheme.pagePadding,
-            8,
-            AppTheme.pagePadding,
-            20,
-          ),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.stretch,
-            children: [
-              if (depositUsed > 0) ...[
-                Text(
-                  'Dépôt utilisé : ${formatFcfa(depositUsed)}',
-                  style: textTheme.bodySmall?.copyWith(
-                    color: AppColors.mintDark,
-                  ),
-                ),
-                const SizedBox(height: 6),
-              ],
-              if (overLimit) ...[
-                Container(
-                  padding: const EdgeInsets.all(12),
-                  decoration: BoxDecoration(
-                    color: AppColors.coralSoft,
-                    borderRadius: BorderRadius.circular(12),
-                  ),
-                  child: Text(
-                    'Plafond de crédit dépassé : la dette serait de '
-                    '${formatFcfa(debtAfter)} pour un plafond de '
-                    '${formatFcfa(limit)}.',
-                    style:
-                        textTheme.bodySmall?.copyWith(color: AppColors.coral),
-                  ),
-                ),
-                const SizedBox(height: 12),
-              ],
-              Row(
-                mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                children: [
-                  Text('Total', style: textTheme.titleMedium),
-                  Text(
-                    formatFcfa(_total),
-                    style: textTheme.titleMedium?.copyWith(
-                      color: AppColors.indigo,
-                      fontWeight: FontWeight.w700,
-                    ),
-                  ),
-                ],
-              ),
-              const SizedBox(height: 16),
-              FilledButton(
-                style: FilledButton.styleFrom(
-                  backgroundColor: AppColors.indigo,
-                ),
-                onPressed: (_items.isEmpty || overLimit || _saving)
-                    ? null
-                    : () => _save(summary),
-                child: _saving
-                    ? const SizedBox(
-                        width: 22,
-                        height: 22,
-                        child: CircularProgressIndicator(
-                          strokeWidth: 2.5,
-                          color: Colors.white,
-                        ),
-                      )
-                    : const Text('Valider'),
-              ),
-            ],
-          ),
+        _SummaryPanel(
+          total: _total,
+          depositUsed: depositUsed,
+          overLimit: overLimit,
+          debtAfter: debtAfter,
+          limit: limit,
+          saving: _saving,
+          canSave: _items.isNotEmpty && !overLimit && !_saving,
+          onSave: () => _save(summary),
         ),
       ],
     );
   }
 }
 
-class _InputRow extends StatelessWidget {
-  const _InputRow({
-    required this.productController,
-    required this.priceController,
-    required this.productFocus,
-    required this.onAdd,
+class _SummaryPanel extends StatelessWidget {
+  const _SummaryPanel({
+    required this.total,
+    required this.depositUsed,
+    required this.overLimit,
+    required this.debtAfter,
+    required this.limit,
+    required this.saving,
+    required this.canSave,
+    required this.onSave,
   });
 
-  final TextEditingController productController;
-  final TextEditingController priceController;
-  final FocusNode productFocus;
-  final VoidCallback onAdd;
+  final int total;
+  final int depositUsed;
+  final bool overLimit;
+  final int debtAfter;
+  final int limit;
+  final bool saving;
+  final bool canSave;
+  final VoidCallback onSave;
 
   @override
   Widget build(BuildContext context) {
-    return Row(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Expanded(
-          flex: 5,
-          child: TextField(
-            controller: productController,
-            focusNode: productFocus,
-            textCapitalization: TextCapitalization.sentences,
-            textInputAction: TextInputAction.next,
-            decoration: const InputDecoration(hintText: 'Produit'),
+    final textTheme = Theme.of(context).textTheme;
+    return Container(
+      padding: const EdgeInsets.fromLTRB(
+        AppTheme.pagePadding,
+        16,
+        AppTheme.pagePadding,
+        20,
+      ),
+      decoration: const BoxDecoration(
+        color: AppColors.surface,
+        borderRadius: BorderRadius.vertical(top: Radius.circular(26)),
+        boxShadow: [
+          BoxShadow(
+            color: AppColors.cardShadow,
+            blurRadius: 24,
+            offset: Offset(0, -8),
           ),
-        ),
-        const SizedBox(width: 10),
-        Expanded(
-          flex: 3,
-          child: TextField(
-            controller: priceController,
-            keyboardType: TextInputType.number,
-            textInputAction: TextInputAction.done,
-            inputFormatters: [FilteringTextInputFormatter.digitsOnly],
-            decoration: const InputDecoration(hintText: 'Prix'),
-            onSubmitted: (_) => onAdd(),
+        ],
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          if (depositUsed > 0) ...[
+            Row(
+              children: [
+                const Icon(
+                  Icons.savings_outlined,
+                  size: 15,
+                  color: AppColors.mintDark,
+                ),
+                const SizedBox(width: 5),
+                Text(
+                  'Dépôt utilisé : ${formatFcfa(depositUsed)}',
+                  style: textTheme.bodySmall?.copyWith(
+                    color: AppColors.mintDark,
+                    fontWeight: FontWeight.w600,
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: 8),
+          ],
+          if (overLimit) ...[
+            AppInfoBanner(
+              icon: Icons.warning_amber_rounded,
+              message: 'Plafond de crédit dépassé : la dette serait de '
+                  '${formatFcfa(debtAfter)} pour un plafond de '
+                  '${formatFcfa(limit)}.',
+              color: AppColors.coral,
+              background: AppColors.coralSoft,
+            ),
+            const SizedBox(height: 12),
+          ],
+          Row(
+            children: [
+              Expanded(
+                child: Text('Total', style: textTheme.titleMedium),
+              ),
+              Text(
+                formatFcfa(total),
+                style: textTheme.headlineSmall?.copyWith(
+                  color: AppColors.indigo,
+                  fontSize: 24,
+                ),
+              ),
+            ],
           ),
-        ),
-        const SizedBox(width: 10),
-        SizedBox(
-          width: 52,
-          height: 52,
-          child: FilledButton(
+          const SizedBox(height: 14),
+          FilledButton.icon(
             style: FilledButton.styleFrom(
               backgroundColor: AppColors.indigo,
-              minimumSize: const Size(52, 52),
-              padding: EdgeInsets.zero,
-              shape: RoundedRectangleBorder(
-                borderRadius: BorderRadius.circular(12),
-              ),
             ),
-            onPressed: onAdd,
-            child: const Icon(Icons.add),
+            onPressed: canSave ? onSave : null,
+            icon: saving
+                ? const SizedBox(
+                    width: 20,
+                    height: 20,
+                    child: CircularProgressIndicator(
+                      strokeWidth: 2.4,
+                      color: Colors.white,
+                    ),
+                  )
+                : const Icon(Icons.check_rounded, size: 20),
+            label: Text(saving ? 'Enregistrement…' : 'Enregistrer l’achat'),
           ),
-        ),
-      ],
+        ],
+      ),
     );
   }
 }
@@ -335,30 +452,41 @@ class _ItemRow extends StatelessWidget {
   Widget build(BuildContext context) {
     final textTheme = Theme.of(context).textTheme;
 
-    return Container(
-      padding: const EdgeInsets.only(left: 16, right: 4),
-      height: 48,
-      decoration: BoxDecoration(
-        color: AppColors.surface,
-        borderRadius: BorderRadius.circular(12),
-      ),
+    return FaymaCard(
+      padding: const EdgeInsets.symmetric(horizontal: 13, vertical: 10),
       child: Row(
         children: [
+          Container(
+            width: 38,
+            height: 38,
+            decoration: BoxDecoration(
+              color: AppColors.indigoSoft,
+              borderRadius: BorderRadius.circular(11),
+            ),
+            child: const Icon(
+              Icons.shopping_bag_outlined,
+              size: 18,
+              color: AppColors.indigo,
+            ),
+          ),
+          const SizedBox(width: 11),
           Expanded(
             child: Text(
               item.name,
               overflow: TextOverflow.ellipsis,
-              style: textTheme.bodyMedium,
+              style: textTheme.bodyMedium?.copyWith(
+                fontWeight: FontWeight.w600,
+              ),
             ),
           ),
           const SizedBox(width: 8),
           Text(
             formatFcfa(item.price),
-            style: textTheme.bodyMedium?.copyWith(fontWeight: FontWeight.w600),
+            style: textTheme.titleSmall?.copyWith(fontSize: 13),
           ),
           IconButton(
             tooltip: 'Retirer',
-            icon: const Icon(Icons.close, size: 18),
+            icon: const Icon(Icons.close_rounded, size: 18),
             color: AppColors.textSecondary,
             onPressed: onRemove,
           ),

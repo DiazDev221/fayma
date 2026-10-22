@@ -8,6 +8,7 @@ import '../providers.dart';
 import '../services/operation_sms.dart';
 import '../theme/app_theme.dart';
 import '../utils/format.dart';
+import '../widgets/app_widgets.dart';
 
 /// Écran 05 - Remboursement : le client paie tout ou partie de sa dette.
 class RepaymentScreen extends ConsumerStatefulWidget {
@@ -37,6 +38,13 @@ class _RepaymentScreenState extends ConsumerState<RepaymentScreen> {
   }
 
   int get _amount => parseAmount(_amountController.text) ?? 0;
+
+  void _setAmount(int value) {
+    _amountController.text = value.toString();
+    _amountController.selection = TextSelection.collapsed(
+      offset: _amountController.text.length,
+    );
+  }
 
   Future<void> _save(ClientSummary summary) async {
     if (_saving) return;
@@ -82,21 +90,33 @@ class _RepaymentScreenState extends ConsumerState<RepaymentScreen> {
     return Scaffold(
       appBar: AppBar(
         title: Text(
-          'Enregistrer un remboursement',
-          style: Theme.of(context).textTheme.headlineSmall?.copyWith(
-                fontSize: 20,
-              ),
+          'Remboursement',
+          style: Theme.of(context).textTheme.headlineSmall,
         ),
       ),
       body: SafeArea(
         child: summaryAsync.when(
-          loading: () => const Center(child: CircularProgressIndicator()),
+          loading: () => const AppLoading(label: 'Chargement du client…'),
           error: (_, __) => const Center(
-            child: Text('Impossible de charger le client.'),
+            child: AppEmptyState(
+              icon: Icons.cloud_off_rounded,
+              title: 'Client indisponible',
+              message: 'Impossible de charger les informations du client.',
+              color: AppColors.coral,
+              background: AppColors.coralSoft,
+            ),
           ),
           data: (summary) {
             if (summary == null) {
-              return const Center(child: Text('Client introuvable.'));
+              return const Center(
+                child: AppEmptyState(
+                  icon: Icons.person_off_outlined,
+                  title: 'Client introuvable',
+                  message: 'Ce client n’existe plus dans votre boutique.',
+                  color: AppColors.indigo,
+                  background: AppColors.indigoSoft,
+                ),
+              );
             }
             return _buildContent(context, summary);
           },
@@ -122,82 +142,156 @@ class _RepaymentScreenState extends ConsumerState<RepaymentScreen> {
           'Utilisez « Dépôt » pour enregistrer une avance.';
     }
 
+    final quarter = debt == 0 ? 0 : (debt / 4).round().clamp(1, debt).toInt();
+    final half = debt == 0 ? 0 : (debt / 2).round().clamp(1, debt).toInt();
+
     return Column(
       children: [
         Expanded(
           child: ListView(
             padding: const EdgeInsets.fromLTRB(
               AppTheme.pagePadding,
-              8,
+              4,
               AppTheme.pagePadding,
               16,
             ),
             keyboardDismissBehavior: ScrollViewKeyboardDismissBehavior.onDrag,
             children: [
-              Text(
-                summary.client.fullName,
-                style: textTheme.bodyMedium?.copyWith(
-                  color: AppColors.mintDark,
-                  fontWeight: FontWeight.w600,
+              FaymaCard(
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 13,
+                  vertical: 11,
+                ),
+                child: Row(
+                  children: [
+                    ClientAvatar(name: summary.client.fullName, size: 38),
+                    const SizedBox(width: 10),
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            summary.client.fullName,
+                            overflow: TextOverflow.ellipsis,
+                            style: textTheme.titleSmall,
+                          ),
+                          const SizedBox(height: 1),
+                          Text(
+                            summary.client.telephone,
+                            style: textTheme.bodySmall,
+                          ),
+                        ],
+                      ),
+                    ),
+                    AppStatusPill(
+                      label: debt > 0 ? 'À crédit' : 'À jour',
+                      color: debt > 0 ? AppColors.coral : AppColors.mintDark,
+                      background:
+                          debt > 0 ? AppColors.coralSoft : AppColors.mintSoft,
+                      compact: true,
+                    ),
+                  ],
                 ),
               ),
+              const SizedBox(height: 16),
+              _BalanceCard(debt: debt),
               const SizedBox(height: 18),
-              _BalanceCard(
-                label: 'Solde actuel dû',
-                amount: debt,
-                background: AppColors.coralSoft,
-                color: AppColors.coral,
-              ),
-              const SizedBox(height: 24),
-              Text(
-                'Montant remboursé',
-                style: textTheme.bodySmall?.copyWith(
-                  color: AppColors.textPrimary,
-                  fontWeight: FontWeight.w600,
+              FaymaCard(
+                padding: const EdgeInsets.all(16),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  children: [
+                    Text(
+                      'Montant remboursé',
+                      style: textTheme.titleSmall,
+                    ),
+                    const SizedBox(height: 10),
+                    TextField(
+                      controller: _amountController,
+                      autofocus: true,
+                      keyboardType: TextInputType.number,
+                      inputFormatters: [
+                        FilteringTextInputFormatter.digitsOnly,
+                      ],
+                      style: textTheme.headlineSmall?.copyWith(
+                        fontSize: 28,
+                        fontWeight: FontWeight.w800,
+                      ),
+                      decoration: InputDecoration(
+                        hintText: '0',
+                        suffixText: 'FCFA',
+                        errorText: errorText,
+                        errorMaxLines: 2,
+                        contentPadding: const EdgeInsets.symmetric(
+                          horizontal: 18,
+                          vertical: 18,
+                        ),
+                      ),
+                    ),
+                    const SizedBox(height: 12),
+                    Row(
+                      children: [
+                        Expanded(
+                          child: _AmountShortcut(
+                            label: '25 %',
+                            enabled: debt > 0,
+                            onTap: () => _setAmount(quarter),
+                          ),
+                        ),
+                        const SizedBox(width: 8),
+                        Expanded(
+                          child: _AmountShortcut(
+                            label: '50 %',
+                            enabled: debt > 0,
+                            onTap: () => _setAmount(half),
+                          ),
+                        ),
+                        const SizedBox(width: 8),
+                        Expanded(
+                          child: _AmountShortcut(
+                            label: 'Tout',
+                            enabled: debt > 0,
+                            onTap: () => _setAmount(debt),
+                          ),
+                        ),
+                      ],
+                    ),
+                    if (debt == 0) ...[
+                      const SizedBox(height: 14),
+                      const AppInfoBanner(
+                        icon: Icons.info_outline_rounded,
+                        message: 'Ce client ne doit rien. Un dépôt permettra '
+                            'd’enregistrer une avance.',
+                        color: AppColors.indigo,
+                        background: AppColors.indigoSoft,
+                      ),
+                    ],
+                  ],
                 ),
               ),
-              const SizedBox(height: 8),
-              TextField(
-                controller: _amountController,
-                autofocus: true,
-                keyboardType: TextInputType.number,
-                inputFormatters: [FilteringTextInputFormatter.digitsOnly],
-                style: const TextStyle(fontSize: 22, fontWeight: FontWeight.w600),
-                decoration: InputDecoration(
-                  hintText: '0',
-                  suffixText: 'FCFA',
-                  errorText: errorText,
-                  errorMaxLines: 2,
-                  contentPadding: const EdgeInsets.symmetric(
-                    horizontal: 20,
-                    vertical: 18,
-                  ),
+              const SizedBox(height: 16),
+              FaymaCard(
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 15,
+                  vertical: 12,
                 ),
-              ),
-              if (debt > 0)
-                Align(
-                  alignment: Alignment.centerRight,
-                  child: TextButton(
-                    onPressed: () =>
-                        _amountController.text = debt.toString(),
-                    child: Text('Tout payer (${formatFcfa(debt)})'),
-                  ),
-                ),
-              const SizedBox(height: 12),
-              Row(
-                mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                children: [
-                  Text('Nouveau solde', style: textTheme.bodySmall),
-                  Text(
-                    formatFcfa(newBalance),
-                    style: textTheme.bodyMedium?.copyWith(
-                      color: newBalance == 0
+                child: Column(
+                  children: [
+                    AppKeyValueRow(
+                      label: 'Dette actuelle',
+                      value: formatFcfa(debt),
+                      valueColor: AppColors.coral,
+                    ),
+                    const Divider(),
+                    AppKeyValueRow(
+                      label: 'Nouveau solde',
+                      value: formatFcfa(newBalance),
+                      valueColor: newBalance == 0
                           ? AppColors.mintDark
                           : AppColors.coral,
-                      fontWeight: FontWeight.w700,
                     ),
-                  ),
-                ],
+                  ],
+                ),
               ),
             ],
           ),
@@ -209,18 +303,19 @@ class _RepaymentScreenState extends ConsumerState<RepaymentScreen> {
             AppTheme.pagePadding,
             20,
           ),
-          child: FilledButton(
+          child: FilledButton.icon(
             onPressed: (valid && !_saving) ? () => _save(summary) : null,
-            child: _saving
+            icon: _saving
                 ? const SizedBox(
-                    width: 22,
-                    height: 22,
+                    width: 20,
+                    height: 20,
                     child: CircularProgressIndicator(
-                      strokeWidth: 2.5,
+                      strokeWidth: 2.4,
                       color: Colors.white,
                     ),
                   )
-                : const Text('Valider'),
+                : const Icon(Icons.check_rounded, size: 20),
+            label: Text(_saving ? 'Enregistrement…' : 'Encaisser'),
           ),
         ),
       ],
@@ -228,39 +323,83 @@ class _RepaymentScreenState extends ConsumerState<RepaymentScreen> {
   }
 }
 
-class _BalanceCard extends StatelessWidget {
-  const _BalanceCard({
+class _AmountShortcut extends StatelessWidget {
+  const _AmountShortcut({
     required this.label,
-    required this.amount,
-    required this.background,
-    required this.color,
+    required this.enabled,
+    required this.onTap,
   });
 
   final String label;
-  final int amount;
-  final Color background;
-  final Color color;
+  final bool enabled;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    return OutlinedButton(
+      onPressed: enabled ? onTap : null,
+      style: OutlinedButton.styleFrom(
+        minimumSize: const Size.fromHeight(38),
+        padding: const EdgeInsets.symmetric(horizontal: 6),
+        backgroundColor: AppColors.surface,
+        foregroundColor: AppColors.mintDark,
+        side: const BorderSide(color: AppColors.border),
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(11),
+        ),
+        textStyle: Theme.of(context).textTheme.labelMedium,
+      ),
+      child: Text(label),
+    );
+  }
+}
+
+class _BalanceCard extends StatelessWidget {
+  const _BalanceCard({required this.debt});
+
+  final int debt;
 
   @override
   Widget build(BuildContext context) {
     final textTheme = Theme.of(context).textTheme;
-
     return Container(
       width: double.infinity,
-      padding: const EdgeInsets.symmetric(vertical: 20, horizontal: 16),
+      padding: const EdgeInsets.symmetric(vertical: 20, horizontal: 18),
       decoration: BoxDecoration(
-        color: background,
-        borderRadius: BorderRadius.circular(20),
+        color: debt > 0 ? AppColors.coralSoft : AppColors.mintSoft,
+        borderRadius: BorderRadius.circular(AppTheme.cardRadius),
       ),
       child: Column(
         children: [
-          Text(label, style: textTheme.bodySmall?.copyWith(color: color)),
+          Row(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              Icon(
+                debt > 0
+                    ? Icons.account_balance_wallet_outlined
+                    : Icons.check_circle_outline_rounded,
+                size: 17,
+                color: debt > 0 ? AppColors.coral : AppColors.mintDark,
+              ),
+              const SizedBox(width: 6),
+              Text(
+                debt > 0 ? 'Solde actuel dû' : 'Compte à jour',
+                style: textTheme.bodySmall?.copyWith(
+                  color: debt > 0 ? AppColors.coral : AppColors.mintDark,
+                  fontWeight: FontWeight.w600,
+                ),
+              ),
+            ],
+          ),
           const SizedBox(height: 6),
           FittedBox(
             fit: BoxFit.scaleDown,
             child: Text(
-              formatFcfa(amount),
-              style: textTheme.headlineMedium?.copyWith(color: color),
+              formatFcfa(debt),
+              style: textTheme.headlineMedium?.copyWith(
+                color: debt > 0 ? AppColors.coral : AppColors.mintDark,
+                fontSize: 30,
+              ),
             ),
           ),
         ],

@@ -5,6 +5,7 @@ import 'package:go_router/go_router.dart';
 import '../models/picked_contact.dart';
 import '../theme/app_theme.dart';
 import '../utils/format.dart';
+import '../widgets/app_widgets.dart';
 
 /// Écran 07 - Choisir un contact du répertoire.
 /// Renvoie un [PickedContact] à l'écran qui l'a ouvert (ajout de client).
@@ -133,20 +134,22 @@ class _PickContactScreenState extends State<PickContactScreen> {
             Padding(
               padding: const EdgeInsets.fromLTRB(
                 AppTheme.pagePadding,
-                8,
+                2,
                 AppTheme.pagePadding,
-                12,
+                10,
               ),
               child: TextField(
                 controller: _searchController,
                 onChanged: (value) => setState(() => _query = value),
+                textInputAction: TextInputAction.search,
                 decoration: InputDecoration(
                   hintText: 'Rechercher un contact',
-                  prefixIcon: const Icon(Icons.search),
+                  prefixIcon: const Icon(Icons.search_rounded),
                   suffixIcon: _query.isEmpty
                       ? null
                       : IconButton(
-                          icon: const Icon(Icons.close),
+                          tooltip: 'Effacer la recherche',
+                          icon: const Icon(Icons.close_rounded, size: 20),
                           onPressed: () {
                             _searchController.clear();
                             setState(() => _query = '');
@@ -165,43 +168,79 @@ class _PickContactScreenState extends State<PickContactScreen> {
   Widget _buildBody(TextTheme textTheme) {
     switch (_state) {
       case _LoadState.loading:
-        return const Center(child: CircularProgressIndicator());
+        return const AppLoading(label: 'Lecture des contacts…');
       case _LoadState.denied:
-        return _Message(
-          text: 'L\'accès aux contacts est refusé.\n'
-              'Autorisez-le dans les réglages du téléphone, '
-              'ou saisissez le client à la main.',
-          actionLabel: 'Réessayer',
-          onAction: _load,
+        return AppEmptyState(
+          icon: Icons.lock_outline_rounded,
+          title: 'Accès aux contacts refusé',
+          message: 'Autorisez l’accès dans les réglages du téléphone, ou '
+              'saisissez le client à la main.',
+          primaryLabel: 'Réessayer',
+          primaryIcon: Icons.refresh_rounded,
+          onPrimary: _load,
+          color: AppColors.coral,
+          background: AppColors.coralSoft,
         );
       case _LoadState.failed:
-        return _Message(
-          text: 'Impossible de lire les contacts.',
-          actionLabel: 'Réessayer',
-          onAction: _load,
+        return AppEmptyState(
+          icon: Icons.cloud_off_rounded,
+          title: 'Contacts indisponibles',
+          message: 'Impossible de lire le répertoire du téléphone.',
+          primaryLabel: 'Réessayer',
+          primaryIcon: Icons.refresh_rounded,
+          onPrimary: _load,
+          color: AppColors.coral,
+          background: AppColors.coralSoft,
         );
       case _LoadState.ready:
         final list = _filtered;
         if (list.isEmpty) {
-          return _Message(
-            text: _entries.isEmpty
-                ? 'Aucun contact avec un numéro de téléphone.'
-                : 'Aucun contact trouvé.',
+          return AppEmptyState(
+            icon: _entries.isEmpty
+                ? Icons.contacts_outlined
+                : Icons.search_off_rounded,
+            title: _entries.isEmpty
+                ? 'Aucun contact disponible'
+                : 'Aucun résultat',
+            message: _entries.isEmpty
+                ? 'Aucun contact avec un numéro de téléphone n’a été trouvé.'
+                : 'Aucun contact ne correspond à votre recherche.',
+            color: AppColors.indigo,
+            background: AppColors.indigoSoft,
           );
         }
-        return ListView.separated(
-          padding: const EdgeInsets.fromLTRB(
-            AppTheme.pagePadding,
-            0,
-            AppTheme.pagePadding,
-            24,
-          ),
-          itemCount: list.length,
-          separatorBuilder: (_, __) => const SizedBox(height: 10),
-          itemBuilder: (context, index) => _ContactTile(
-            entry: list[index],
-            onTap: () => context.pop(list[index].picked),
-          ),
+        return Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            Padding(
+              padding: const EdgeInsets.fromLTRB(
+                AppTheme.pagePadding,
+                0,
+                AppTheme.pagePadding,
+                8,
+              ),
+              child: Text(
+                '${list.length} contact${list.length > 1 ? 's' : ''}',
+                style: textTheme.bodySmall,
+              ),
+            ),
+            Expanded(
+              child: ListView.separated(
+                padding: const EdgeInsets.fromLTRB(
+                  AppTheme.pagePadding,
+                  0,
+                  AppTheme.pagePadding,
+                  24,
+                ),
+                itemCount: list.length,
+                separatorBuilder: (_, __) => const SizedBox(height: 10),
+                itemBuilder: (context, index) => _ContactTile(
+                  entry: list[index],
+                  onTap: () => context.pop(list[index].picked),
+                ),
+              ),
+            ),
+          ],
         );
     }
   }
@@ -213,91 +252,36 @@ class _ContactTile extends StatelessWidget {
   final _ContactEntry entry;
   final VoidCallback onTap;
 
-  String get _initials {
-    final p = entry.picked.prenom;
-    final n = entry.picked.nom;
-    final first = p.isNotEmpty ? p[0] : '';
-    final second = n.isNotEmpty ? n[0] : '';
-    return (first + second).toUpperCase();
-  }
-
   @override
   Widget build(BuildContext context) {
     final textTheme = Theme.of(context).textTheme;
 
-    return Material(
-      color: AppColors.surface,
-      borderRadius: BorderRadius.circular(AppTheme.radius),
-      child: InkWell(
-        borderRadius: BorderRadius.circular(AppTheme.radius),
-        onTap: onTap,
-        child: Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
-          child: Row(
-            children: [
-              CircleAvatar(
-                radius: 20,
-                backgroundColor: AppColors.indigoSoft,
-                child: Text(
-                  _initials,
-                  style: const TextStyle(
-                    color: AppColors.indigo,
-                    fontSize: 14,
-                    fontWeight: FontWeight.w600,
-                  ),
+    return FaymaCard(
+      onTap: onTap,
+      padding: const EdgeInsets.symmetric(horizontal: 13, vertical: 11),
+      child: Row(
+        children: [
+          ClientAvatar(name: entry.displayName, size: 44),
+          const SizedBox(width: 12),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  entry.displayName,
+                  overflow: TextOverflow.ellipsis,
+                  style: textTheme.titleSmall,
                 ),
-              ),
-              const SizedBox(width: 14),
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      entry.displayName,
-                      overflow: TextOverflow.ellipsis,
-                      style: textTheme.bodyMedium?.copyWith(
-                        fontWeight: FontWeight.w600,
-                      ),
-                    ),
-                    const SizedBox(height: 2),
-                    Text(entry.picked.telephone, style: textTheme.bodySmall),
-                  ],
-                ),
-              ),
-            ],
-          ),
-        ),
-      ),
-    );
-  }
-}
-
-class _Message extends StatelessWidget {
-  const _Message({required this.text, this.actionLabel, this.onAction});
-
-  final String text;
-  final String? actionLabel;
-  final VoidCallback? onAction;
-
-  @override
-  Widget build(BuildContext context) {
-    return Center(
-      child: Padding(
-        padding: const EdgeInsets.all(AppTheme.pagePadding),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Text(
-              text,
-              textAlign: TextAlign.center,
-              style: Theme.of(context).textTheme.bodySmall,
+                const SizedBox(height: 2),
+                Text(entry.picked.telephone, style: textTheme.bodySmall),
+              ],
             ),
-            if (actionLabel != null && onAction != null) ...[
-              const SizedBox(height: 16),
-              OutlinedButton(onPressed: onAction, child: Text(actionLabel!)),
-            ],
-          ],
-        ),
+          ),
+          const Icon(
+            Icons.chevron_right_rounded,
+            color: AppColors.textSecondary,
+          ),
+        ],
       ),
     );
   }
