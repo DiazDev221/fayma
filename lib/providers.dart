@@ -4,6 +4,8 @@ import 'data/credit_repository.dart';
 import 'models/balance.dart';
 import 'models/client.dart';
 import 'models/operation.dart';
+import 'services/backup/backup_service.dart';
+import 'services/backup/backup_settings.dart';
 import 'services/sms_sender.dart';
 
 /// Source de données de l'application.
@@ -19,6 +21,19 @@ final creditRepositoryProvider = Provider<CreditRepository>((ref) {
 /// SMS aux clients : ouvre l'application SMS du téléphone, message pré-rempli.
 final smsSenderProvider = Provider<SmsSender>((ref) {
   return createPlatformSmsSender();
+});
+
+/// Code de récupération, identifiants et date de la dernière sauvegarde.
+final backupSettingsProvider = Provider<BackupSettingsStore>((ref) {
+  return BackupSettings();
+});
+
+/// Export et restauration des données de la boutique.
+final backupServiceProvider = Provider<BackupService>((ref) {
+  return BackupService(
+    repository: ref.watch(creditRepositoryProvider),
+    settings: ref.watch(backupSettingsProvider),
+  );
 });
 
 /// Tous les clients de la boutique, triés par nom.

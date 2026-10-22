@@ -57,7 +57,8 @@ void main() {
       expect(balance.deposit, 0);
     });
 
-    test('un remboursement s\'impute d\'abord sur la dette la plus ancienne', () {
+    test('un remboursement s\'impute d\'abord sur la dette la plus ancienne',
+        () {
       final balance = computeBalance([
         _credit('a', 10000, 1),
         _credit('b', 20000, 2),
@@ -103,13 +104,34 @@ void main() {
       expect(balance.originalTotal, 7000);
     });
 
-    test('un dépôt n\'est pas déduit d\'une dette déjà existante', () {
+    test('un dépôt s\'impute sur une dette déjà existante', () {
       final balance = computeBalance([
         _credit('a', 25000, 1),
         _deposit('d', 5000, 2),
       ]);
-      expect(balance.debt, 25000);
-      expect(balance.deposit, 5000);
+      expect(balance.debt, 20000);
+      expect(balance.deposit, 0);
+    });
+
+    test('un dépôt plus grand que la dette : le surplus reste en dépôt', () {
+      final balance = computeBalance([
+        _credit('a', 5000, 1),
+        _deposit('d', 8000, 2),
+      ]);
+      expect(balance.debt, 0);
+      expect(balance.deposit, 3000);
+    });
+
+    test('un dépôt solde les dettes de la plus ancienne à la plus récente', () {
+      final balance = computeBalance([
+        _credit('a', 10000, 1),
+        _credit('b', 20000, 2),
+        _deposit('d', 12000, 3),
+      ]);
+      // 'a' est soldée (10 000), 'b' perd 2 000.
+      expect(balance.openDebts.map((d) => d.operationId), ['b']);
+      expect(balance.debt, 18000);
+      expect(balance.deposit, 0);
     });
 
     test('la dette la plus ancienne est connue', () {
@@ -132,20 +154,21 @@ void main() {
       expect(balance.deposit, 0);
     });
 
-    test('à date égale, l\'ordre d\'enregistrement est conservé', () {
-      final creditFirst = computeBalance([
+    test('à date égale, l\'ordre départage les dettes de même date', () {
+      final aFirst = computeBalance([
         _credit('a', 5000, 1),
+        _credit('b', 5000, 1),
         _deposit('d', 5000, 1),
       ]);
-      expect(creditFirst.debt, 5000);
-      expect(creditFirst.deposit, 5000);
+      // 'a', enregistrée en premier, est soldée ; 'b' reste due.
+      expect(aFirst.openDebts.map((d) => d.operationId), ['b']);
 
-      final depositFirst = computeBalance([
-        _deposit('d', 5000, 1),
+      final bFirst = computeBalance([
+        _credit('b', 5000, 1),
         _credit('a', 5000, 1),
+        _deposit('d', 5000, 1),
       ]);
-      expect(depositFirst.debt, 0);
-      expect(depositFirst.deposit, 0);
+      expect(bFirst.openDebts.map((d) => d.operationId), ['a']);
     });
   });
 

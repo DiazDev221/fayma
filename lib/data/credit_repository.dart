@@ -1,5 +1,6 @@
 import '../models/client.dart';
 import '../models/operation.dart';
+import 'repository_snapshot.dart';
 
 /// Accès aux données de la boutique : clients et opérations.
 ///
@@ -31,4 +32,17 @@ abstract class CreditRepository {
   /// Lève un [StateError] si l'opération n'existe pas, est déjà annulée,
   /// ou est elle-même une annulation.
   Future<void> reverseOperation(String operationId, {String? note});
+
+  /// Version du schéma de stockage. Sert à refuser une sauvegarde créée par
+  /// une version plus récente de l'application.
+  int get schemaVersion;
+
+  /// Copie complète et cohérente des clients et opérations.
+  Future<RepositorySnapshot> snapshot();
+
+  /// Remplace toutes les données par celles de [snapshot].
+  ///
+  /// L'opération est atomique : en cas d'erreur, les données existantes sont
+  /// conservées. La sauvegarde d'origine n'est pas modifiée.
+  Future<void> replaceAll(RepositorySnapshot snapshot);
 }

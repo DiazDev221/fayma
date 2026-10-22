@@ -1,6 +1,7 @@
 import 'package:go_router/go_router.dart';
 
 import '../screens/add_client_screen.dart';
+import '../screens/backup_screen.dart';
 import '../screens/client_detail_screen.dart';
 import '../screens/deposit_screen.dart';
 import '../screens/home_screen.dart';
@@ -15,6 +16,7 @@ class AppRoutes {
   static const home = '/';
   static const newClient = '/clients/new';
   static const pickContact = '/clients/contacts';
+  static const backup = '/backup';
 
   static const _client = '/clients';
   static String client(String id) => '$_client/$id';
@@ -42,6 +44,11 @@ final GoRouter appRouter = GoRouter(
     GoRoute(
       path: AppRoutes.pickContact,
       builder: (context, state) => const PickContactScreen(),
+    ),
+    // 08 - Sauvegarde et restauration
+    GoRoute(
+      path: AppRoutes.backup,
+      builder: (context, state) => const BackupScreen(),
     ),
     // 03 - Fiche client
     GoRoute(

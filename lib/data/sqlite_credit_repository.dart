@@ -5,6 +5,7 @@ import 'package:sqlite3/sqlite3.dart';
 import '../models/client.dart';
 import '../models/operation.dart';
 import 'credit_repository.dart';
+import 'repository_snapshot.dart';
 
 /// Stockage SQLite : les données survivent à la fermeture de l'application.
 ///
@@ -119,7 +120,8 @@ class SqliteCreditRepository implements CreditRepository {
         prenom: row['prenom'] as String,
         telephone: row['telephone'] as String,
         creditLimit: row['credit_limit'] as int,
-        createdAt: DateTime.fromMillisecondsSinceEpoch(row['created_at'] as int),
+        createdAt:
+            DateTime.fromMillisecondsSinceEpoch(row['created_at'] as int),
       );
 
   Operation _operationFromRow(Row row, List<PurchaseItem> items) => Operation(
@@ -181,6 +183,21 @@ class SqliteCreditRepository implements CreditRepository {
     ]);
   }
 
+  void _insertClient(Client client) {
+    _db.execute(
+      'INSERT INTO clients (id, nom, prenom, telephone, credit_limit, '
+      'created_at) VALUES (?, ?, ?, ?, ?, ?)',
+      [
+        client.id,
+        client.nom,
+        client.prenom,
+        client.telephone,
+        client.creditLimit,
+        client.createdAt.millisecondsSinceEpoch,
+      ],
+    );
+  }
+
   void _insertOperation(Operation op) {
     _db.execute(
       'INSERT INTO operations (id, client_id, type, amount, date, note, '
@@ -219,18 +236,7 @@ class SqliteCreditRepository implements CreditRepository {
 
   @override
   Future<void> addClient(Client client) async {
-    _db.execute(
-      'INSERT INTO clients (id, nom, prenom, telephone, credit_limit, '
-      'created_at) VALUES (?, ?, ?, ?, ?, ?)',
-      [
-        client.id,
-        client.nom,
-        client.prenom,
-        client.telephone,
-        client.creditLimit,
-        client.createdAt.millisecondsSinceEpoch,
-      ],
-    );
+    _insertClient(client);
     _changes.add(null);
   }
 
@@ -292,6 +298,38 @@ class SqliteCreditRepository implements CreditRepository {
           note: note,
         ),
       );
+    });
+    _changes.add(null);
+  }
+
+  @override
+  int get schemaVersion => _schemaVersion;
+
+  @override
+  Future<RepositorySnapshot> snapshot() async {
+    return RepositorySnapshot(
+      clients: _readClients(),
+      operations: _readOperations(null),
+    );
+  }
+
+  @override
+  Future<void> replaceAll(RepositorySnapshot snapshot) async {
+    _inTransaction(() {
+      // Les annulations peuvent référencer une opération insérée plus tard
+      // dans la liste : on reporte la vérification des clés étrangères à la
+      // fin de la transaction.
+      _db.execute('PRAGMA defer_foreign_keys = ON');
+      _db.execute('DELETE FROM operation_items');
+      _db.execute('DELETE FROM operations');
+      _db.execute('DELETE FROM clients');
+
+      for (final client in snapshot.clients) {
+        _insertClient(client);
+      }
+      for (final operation in snapshot.operations) {
+        _insertOperation(operation);
+      }
     });
     _changes.add(null);
   }

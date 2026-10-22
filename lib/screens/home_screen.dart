@@ -81,7 +81,15 @@ class _Header extends StatelessWidget {
       mainAxisAlignment: MainAxisAlignment.spaceBetween,
       children: [
         Text('Fayma', style: Theme.of(context).textTheme.headlineSmall),
-        const CircleAvatar(radius: 20, backgroundColor: AppColors.mint),
+        IconButton(
+          onPressed: () => context.push(AppRoutes.backup),
+          tooltip: 'Sauvegarde',
+          style: IconButton.styleFrom(
+            backgroundColor: AppColors.mint,
+            foregroundColor: Colors.white,
+          ),
+          icon: const Icon(Icons.backup_outlined, size: 20),
+        ),
       ],
     );
   }
@@ -275,12 +283,20 @@ class _EmptyClients extends StatelessWidget {
   Widget build(BuildContext context) {
     return Padding(
       padding: const EdgeInsets.symmetric(vertical: 32),
-      child: Center(
-        child: Text(
-          'Aucun client pour le moment.\nAjoutez votre premier client.',
-          textAlign: TextAlign.center,
-          style: Theme.of(context).textTheme.bodySmall,
-        ),
+      child: Column(
+        children: [
+          Text(
+            'Aucun client pour le moment.\nAjoutez votre premier client.',
+            textAlign: TextAlign.center,
+            style: Theme.of(context).textTheme.bodySmall,
+          ),
+          const SizedBox(height: 12),
+          TextButton.icon(
+            onPressed: () => context.push(AppRoutes.backup),
+            icon: const Icon(Icons.restore_outlined, size: 18),
+            label: const Text('Restaurer une sauvegarde'),
+          ),
+        ],
       ),
     );
   }

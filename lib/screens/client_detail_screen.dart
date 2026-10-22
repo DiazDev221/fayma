@@ -25,7 +25,8 @@ class ClientDetailScreen extends ConsumerWidget {
       body: SafeArea(
         child: summaryAsync.when(
           loading: () => const Center(child: CircularProgressIndicator()),
-          error: (_, __) => const _CenteredText('Impossible de charger le client.'),
+          error: (_, __) =>
+              const _CenteredText('Impossible de charger le client.'),
           data: (summary) {
             if (summary == null) {
               return const _CenteredText('Client introuvable.');
@@ -165,7 +166,11 @@ class _ActionsRow extends StatelessWidget {
             ListTile(
               leading: const Icon(Icons.savings_outlined),
               title: const Text('Dépôt'),
-              subtitle: const Text('Le client verse une avance'),
+              subtitle: Text(
+                summary.hasDebt
+                    ? 'Déduit d\'abord la dette, le reste en avance'
+                    : 'Le client verse une avance',
+              ),
               onTap: () => Navigator.of(sheetContext).pop('deposit'),
             ),
           ],
@@ -196,8 +201,10 @@ class _ActionsRow extends StatelessWidget {
               shape: shape,
               textStyle: buttonText,
             ),
-            onPressed: () => context.push(AppRoutes.purchase(summary.client.id)),
-            child: const Text('Nouvel achat à crédit', textAlign: TextAlign.center),
+            onPressed: () =>
+                context.push(AppRoutes.purchase(summary.client.id)),
+            child: const Text('Nouvel achat à crédit',
+                textAlign: TextAlign.center),
           ),
         ),
         const SizedBox(width: 12),
@@ -211,7 +218,8 @@ class _ActionsRow extends StatelessWidget {
               textStyle: buttonText,
             ),
             onPressed: () => _openRepayOrDeposit(context),
-            child: const Text('Rembourser / Déposer', textAlign: TextAlign.center),
+            child:
+                const Text('Rembourser / Déposer', textAlign: TextAlign.center),
           ),
         ),
       ],
@@ -354,10 +362,10 @@ class _History extends ConsumerWidget {
           _HistoryRow(
             operation: entry.value,
             isCancelled: reversedIds.contains(entry.value.id),
-            onLongPress: entry.value.isReversal ||
-                    reversedIds.contains(entry.value.id)
-                ? null
-                : () => _confirmReverse(context, ref, entry.value),
+            onLongPress:
+                entry.value.isReversal || reversedIds.contains(entry.value.id)
+                    ? null
+                    : () => _confirmReverse(context, ref, entry.value),
           ),
           const SizedBox(height: 10),
         ],

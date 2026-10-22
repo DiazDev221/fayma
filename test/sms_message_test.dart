@@ -91,6 +91,19 @@ void main() {
     );
   });
 
+  test('dépôt imputé sur la dette : reste à payer', () {
+    final message = buildSmsMessage(
+      operation: _op(OperationType.deposit, 5000),
+      balanceAfter: _owing(20000),
+      clientPrenom: 'Moussa',
+    );
+    expect(
+      message,
+      'Bonjour Moussa, depot de 5 000 FCFA reçu le 21 oct. 2026. '
+      'Reste à payer : 20 000 FCFA.',
+    );
+  });
+
   test('le nom de la boutique est ajouté en signature', () {
     final message = buildSmsMessage(
       operation: _op(OperationType.repayment, 5000),

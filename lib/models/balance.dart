@@ -72,9 +72,9 @@ class _MutableDebt {
 ///
 /// Règles appliquées :
 /// - un achat consomme d'abord le dépôt disponible, le reste devient dette ;
-/// - un remboursement s'impute d'abord sur la dette la plus ancienne
-///   (règle de gestion n°5) ;
-/// - un remboursement qui dépasse la dette devient un dépôt ;
+/// - un dépôt comme un remboursement s'impute d'abord sur la dette la plus
+///   ancienne (règle de gestion n°5) ;
+/// - ce qui dépasse la dette devient un dépôt (avance du client) ;
 /// - une opération annulée est ignorée, ainsi que son annulation : le compte
 ///   est comme si elle n'avait jamais eu lieu (la trace reste dans l'historique).
 Balance computeBalance(Iterable<Operation> operations) {
@@ -101,8 +101,6 @@ Balance computeBalance(Iterable<Operation> operations) {
   for (final entry in effective) {
     final op = entry.value;
     switch (op.type) {
-      case OperationType.deposit:
-        deposit += op.amount;
       case OperationType.credit:
         final fromDeposit = math.min(deposit, op.amount);
         deposit -= fromDeposit;
@@ -110,6 +108,8 @@ Balance computeBalance(Iterable<Operation> operations) {
         if (onCredit > 0) {
           debts.add(_MutableDebt(op.id, op.date, onCredit));
         }
+      // Un dépôt règle la dette existante, comme un remboursement.
+      case OperationType.deposit:
       case OperationType.repayment:
         var left = op.amount;
         for (final debt in debts) {

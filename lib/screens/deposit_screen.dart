@@ -1,3 +1,5 @@
+import 'dart:math' as math;
+
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -9,8 +11,8 @@ import '../services/operation_sms.dart';
 import '../theme/app_theme.dart';
 import '../utils/format.dart';
 
-/// Écran 06 - Nouveau dépôt : le client verse une avance, utilisée
-/// en déduction de ses prochains achats à crédit.
+/// Écran 06 - Nouveau dépôt : le client verse une somme, imputée d'abord
+/// sur sa dette, puis conservée en avance pour ses prochains achats à crédit.
 class DepositScreen extends ConsumerStatefulWidget {
   const DepositScreen({super.key, required this.clientId});
 
@@ -27,7 +29,7 @@ class _DepositScreenState extends ConsumerState<DepositScreen> {
   @override
   void initState() {
     super.initState();
-    // Met à jour le « Nouveau solde en dépôt » à chaque frappe.
+    // Met à jour la répartition dette / dépôt à chaque frappe.
     _amountController.addListener(() => setState(() {}));
   }
 
@@ -104,9 +106,30 @@ class _DepositScreenState extends ConsumerState<DepositScreen> {
 
   Widget _buildContent(BuildContext context, ClientSummary summary) {
     final textTheme = Theme.of(context).textTheme;
-    final current = summary.balance.deposit;
+    final debt = summary.balance.debt;
+    final currentDeposit = summary.balance.deposit;
     final amount = _amount;
     final valid = amount > 0;
+
+    // Le versement règle d'abord la dette, le surplus reste en dépôt.
+    final paidOnDebt = math.min(amount, debt);
+    final remainingDebt = debt - paidOnDebt;
+    final newDeposit = currentDeposit + amount - paidOnDebt;
+
+    final String allocationText;
+    if (debt == 0) {
+      allocationText = 'Le montant s\'ajoute au dépôt du client.';
+    } else if (amount == 0) {
+      allocationText = 'Ce versement sera d\'abord déduit de la dette du '
+          'client. Le surplus, s\'il y en a, restera en dépôt.';
+    } else if (newDeposit > 0) {
+      allocationText = 'Sur ${formatFcfa(amount)} : '
+          '${formatFcfa(paidOnDebt)} déduits de la dette et '
+          '${formatFcfa(newDeposit)} conservés en dépôt.';
+    } else {
+      allocationText = '${formatFcfa(paidOnDebt)} seront déduits de la dette '
+          'du client.';
+    }
 
     return Column(
       children: [
@@ -128,15 +151,23 @@ class _DepositScreenState extends ConsumerState<DepositScreen> {
                 ),
               ),
               const SizedBox(height: 18),
-              _BalanceCard(
-                label: 'Solde en dépôt',
-                amount: current,
-                background: AppColors.mintSoft,
-                color: AppColors.mintDark,
-              ),
+              if (debt > 0)
+                _BalanceCard(
+                  label: 'Dette actuelle',
+                  amount: debt,
+                  background: AppColors.coralSoft,
+                  color: AppColors.coral,
+                )
+              else
+                _BalanceCard(
+                  label: 'Solde en dépôt',
+                  amount: currentDeposit,
+                  background: AppColors.mintSoft,
+                  color: AppColors.mintDark,
+                ),
               const SizedBox(height: 24),
               Text(
-                'Montant déposé',
+                'Montant versé',
                 style: textTheme.bodySmall?.copyWith(
                   color: AppColors.textPrimary,
                   fontWeight: FontWeight.w600,
@@ -163,37 +194,41 @@ class _DepositScreenState extends ConsumerState<DepositScreen> {
                 ),
               ),
               const SizedBox(height: 20),
-              Row(
-                mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                children: [
-                  Text('Nouveau solde en dépôt', style: textTheme.bodySmall),
-                  Text(
-                    formatFcfa(current + amount),
-                    style: textTheme.bodyMedium?.copyWith(
-                      color: AppColors.mintDark,
-                      fontWeight: FontWeight.w700,
-                    ),
+              if (debt > 0) ...[
+                _BalanceRow(
+                  label: 'Nouvelle dette',
+                  amount: remainingDebt,
+                  color:
+                      remainingDebt > 0 ? AppColors.coral : AppColors.mintDark,
+                ),
+                if (newDeposit > 0) ...[
+                  const SizedBox(height: 8),
+                  _BalanceRow(
+                    label: 'Nouveau solde en dépôt',
+                    amount: newDeposit,
+                    color: AppColors.mintDark,
                   ),
                 ],
-              ),
-              if (summary.hasDebt) ...[
-                const SizedBox(height: 20),
-                Container(
-                  padding: const EdgeInsets.all(12),
-                  decoration: BoxDecoration(
-                    color: AppColors.coralSoft,
-                    borderRadius: BorderRadius.circular(12),
-                  ),
-                  child: Text(
-                    'Ce client doit encore ${formatFcfa(summary.balance.debt)}. '
-                    'Un dépôt n\'est pas déduit de sa dette : il sert pour ses '
-                    'prochains achats. Pour payer sa dette, utilisez '
-                    '« Remboursement ».',
-                    style:
-                        textTheme.bodySmall?.copyWith(color: AppColors.coral),
+              ] else
+                _BalanceRow(
+                  label: 'Nouveau solde en dépôt',
+                  amount: newDeposit,
+                  color: AppColors.mintDark,
+                ),
+              const SizedBox(height: 20),
+              Container(
+                padding: const EdgeInsets.all(12),
+                decoration: BoxDecoration(
+                  color: debt > 0 ? AppColors.indigoSoft : AppColors.mintSoft,
+                  borderRadius: BorderRadius.circular(12),
+                ),
+                child: Text(
+                  allocationText,
+                  style: textTheme.bodySmall?.copyWith(
+                    color: debt > 0 ? AppColors.indigo : AppColors.mintDark,
                   ),
                 ),
-              ],
+              ),
             ],
           ),
         ),
@@ -260,6 +295,37 @@ class _BalanceCard extends StatelessWidget {
           ),
         ],
       ),
+    );
+  }
+}
+
+class _BalanceRow extends StatelessWidget {
+  const _BalanceRow({
+    required this.label,
+    required this.amount,
+    required this.color,
+  });
+
+  final String label;
+  final int amount;
+  final Color color;
+
+  @override
+  Widget build(BuildContext context) {
+    final textTheme = Theme.of(context).textTheme;
+
+    return Row(
+      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+      children: [
+        Text(label, style: textTheme.bodySmall),
+        Text(
+          formatFcfa(amount),
+          style: textTheme.bodyMedium?.copyWith(
+            color: color,
+            fontWeight: FontWeight.w700,
+          ),
+        ),
+      ],
     );
   }
 }

@@ -3,6 +3,7 @@ import 'dart:async';
 import '../models/client.dart';
 import '../models/operation.dart';
 import 'credit_repository.dart';
+import 'repository_snapshot.dart';
 
 /// Stockage en mémoire : perdu à la fermeture de l'application.
 /// Sert à développer les écrans avant d'ajouter SQLite.
@@ -179,6 +180,28 @@ class InMemoryCreditRepository implements CreditRepository {
         note: note,
       ),
     );
+    _changes.add(null);
+  }
+
+  @override
+  int get schemaVersion => 1;
+
+  @override
+  Future<RepositorySnapshot> snapshot() async {
+    return RepositorySnapshot(
+      clients: _sortedClients(),
+      operations: List.unmodifiable(_operations),
+    );
+  }
+
+  @override
+  Future<void> replaceAll(RepositorySnapshot snapshot) async {
+    _clients
+      ..clear()
+      ..addAll(snapshot.clients);
+    _operations
+      ..clear()
+      ..addAll(snapshot.operations);
     _changes.add(null);
   }
 }
