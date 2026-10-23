@@ -4,8 +4,10 @@ import 'package:go_router/go_router.dart';
 
 import '../providers.dart';
 import '../router/app_router.dart';
+import '../services/operation_sms.dart';
 import '../theme/app_theme.dart';
 import '../utils/format.dart';
+import '../utils/share_origin.dart';
 import '../widgets/app_widgets.dart';
 
 enum _ClientFilter { all, debt, deposit, clear }
@@ -22,11 +24,47 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
   final _searchController = TextEditingController();
   String _query = '';
   _ClientFilter _filter = _ClientFilter.all;
+  bool _reportBusy = false;
+  String? _reminderClientId;
 
   @override
   void dispose() {
     _searchController.dispose();
     super.dispose();
+  }
+
+  Future<void> _exportReport() async {
+    if (_reportBusy) return;
+
+    final clients = ref.read(clientsProvider).valueOrNull;
+    final operations = ref.read(allOperationsProvider).valueOrNull;
+    if (clients == null || operations == null) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Les données sont encore en chargement.')),
+      );
+      return;
+    }
+
+    setState(() => _reportBusy = true);
+    try {
+      await ref.read(pdfExportServiceProvider).shareGeneralReport(
+            clients: clients,
+            operations: operations,
+            sharePositionOrigin: sharePositionOriginFor(context),
+          );
+    } catch (error) {
+      debugPrint('Génération du rapport PDF : $error');
+      if (!mounted) return;
+      ScaffoldMessenger.of(context)
+        ..hideCurrentSnackBar()
+        ..showSnackBar(
+          const SnackBar(
+            content: Text('Impossible de générer le rapport PDF.'),
+          ),
+        );
+    } finally {
+      if (mounted) setState(() => _reportBusy = false);
+    }
   }
 
   void _clearFilters() {
@@ -35,6 +73,22 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
       _query = '';
       _filter = _ClientFilter.all;
     });
+  }
+
+  Future<void> _sendReminder(ClientSummary summary) async {
+    if (_reminderClientId != null) return;
+    setState(() => _reminderClientId = summary.client.id);
+
+    try {
+      final sms = await prepareReminderSms(
+        ref: ref,
+        context: context,
+        summary: summary,
+      );
+      await sms.send();
+    } finally {
+      if (mounted) setState(() => _reminderClientId = null);
+    }
   }
 
   void _reload() {
@@ -71,6 +125,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
   Widget build(BuildContext context) {
     final summariesAsync = ref.watch(clientSummariesProvider);
     final totals = ref.watch(shopTotalsProvider).value;
+    final shopName = ref.watch(shopNameProvider).valueOrNull ?? '';
     final allClients = summariesAsync.valueOrNull ?? const <ClientSummary>[];
     final clients = _filtered(allClients);
     final hasClients = allClients.isNotEmpty;
@@ -92,13 +147,18 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
             104,
           ),
           children: [
-            const _Header(),
+            _Header(shopName: shopName),
             const SizedBox(height: 22),
             _HeroCard(
               totalDue: totals?.totalDue ?? 0,
               clientsWithDebt: totals?.clientsWithDebt ?? 0,
               dueShare: totals?.dueShare ?? 0,
               clientCount: allClients.length,
+            ),
+            const SizedBox(height: 14),
+            _ReportCard(
+              busy: _reportBusy,
+              onTap: _exportReport,
             ),
             const SizedBox(height: 26),
             summariesAsync.when(
@@ -210,6 +270,10 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
                           onTap: () => context.push(
                             AppRoutes.client(summary.client.id),
                           ),
+                          onRemind: summary.hasDebt
+                              ? () => _sendReminder(summary)
+                              : null,
+                          reminderBusy: _reminderClientId == summary.client.id,
                         ),
                         const SizedBox(height: 12),
                       ],
@@ -224,12 +288,78 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
   }
 }
 
-class _Header extends StatelessWidget {
-  const _Header();
+class _ReportCard extends StatelessWidget {
+  const _ReportCard({required this.busy, required this.onTap});
+
+  final bool busy;
+  final VoidCallback onTap;
 
   @override
   Widget build(BuildContext context) {
     final textTheme = Theme.of(context).textTheme;
+
+    return FaymaCard(
+      onTap: busy ? null : onTap,
+      padding: const EdgeInsets.fromLTRB(14, 12, 12, 12),
+      child: Row(
+        children: [
+          Container(
+            width: 42,
+            height: 42,
+            decoration: BoxDecoration(
+              color: AppColors.indigoSoft,
+              borderRadius: BorderRadius.circular(13),
+            ),
+            child: const Icon(
+              Icons.picture_as_pdf_outlined,
+              color: AppColors.indigo,
+              size: 21,
+            ),
+          ),
+          const SizedBox(width: 12),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  'Rapport général PDF',
+                  style: textTheme.titleSmall,
+                ),
+                const SizedBox(height: 2),
+                Text(
+                  'Toutes les dettes, dépôts et opérations de la boutique.',
+                  style: textTheme.bodySmall,
+                ),
+              ],
+            ),
+          ),
+          const SizedBox(width: 8),
+          if (busy)
+            const SizedBox(
+              width: 22,
+              height: 22,
+              child: CircularProgressIndicator(strokeWidth: 2.2),
+            )
+          else
+            const Icon(
+              Icons.chevron_right_rounded,
+              color: AppColors.textSecondary,
+            ),
+        ],
+      ),
+    );
+  }
+}
+
+class _Header extends StatelessWidget {
+  const _Header({required this.shopName});
+
+  final String shopName;
+
+  @override
+  Widget build(BuildContext context) {
+    final textTheme = Theme.of(context).textTheme;
+    final title = shopName.trim().isEmpty ? 'Fayma' : shopName.trim();
     return Row(
       children: [
         Container(
@@ -262,13 +392,39 @@ class _Header extends StatelessWidget {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              Text('Fayma', style: textTheme.headlineSmall),
+              Text(
+                title,
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                style: textTheme.headlineSmall,
+              ),
               const SizedBox(height: 1),
-              Text('Votre boutique, en un coup d’œil',
-                  style: textTheme.bodySmall),
+              Text(
+                shopName.trim().isEmpty
+                    ? 'Ajoutez le nom de votre boutique'
+                    : 'Votre boutique, en un coup d’œil',
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                style: textTheme.bodySmall,
+              ),
             ],
           ),
         ),
+        IconButton(
+          onPressed: () => context.push(AppRoutes.shopSettings),
+          tooltip: 'Paramètres de la boutique',
+          style: IconButton.styleFrom(
+            backgroundColor: AppColors.surface,
+            foregroundColor: AppColors.ink,
+            side: const BorderSide(color: AppColors.border),
+            minimumSize: const Size(42, 42),
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(14),
+            ),
+          ),
+          icon: const Icon(Icons.settings_outlined, size: 20),
+        ),
+        const SizedBox(width: 6),
         IconButton(
           onPressed: () => context.push(AppRoutes.backup),
           tooltip: 'Sauvegarde',
@@ -276,7 +432,7 @@ class _Header extends StatelessWidget {
             backgroundColor: AppColors.surface,
             foregroundColor: AppColors.ink,
             side: const BorderSide(color: AppColors.border),
-            minimumSize: const Size(44, 44),
+            minimumSize: const Size(42, 42),
             shape: RoundedRectangleBorder(
               borderRadius: BorderRadius.circular(14),
             ),
@@ -517,10 +673,17 @@ class _FilterChip extends StatelessWidget {
 }
 
 class _ClientCard extends StatelessWidget {
-  const _ClientCard({required this.summary, required this.onTap});
+  const _ClientCard({
+    required this.summary,
+    required this.onTap,
+    this.onRemind,
+    this.reminderBusy = false,
+  });
 
   final ClientSummary summary;
   final VoidCallback onTap;
+  final VoidCallback? onRemind;
+  final bool reminderBusy;
 
   @override
   Widget build(BuildContext context) {
@@ -637,6 +800,11 @@ class _ClientCard extends StatelessWidget {
                     color: AppColors.textSecondary,
                   ),
                 ),
+                const SizedBox(width: 2),
+                _ReminderIconButton(
+                  busy: reminderBusy,
+                  onPressed: onRemind,
+                ),
               ],
             ),
           ] else if (balance.deposit > 0) ...[
@@ -663,6 +831,37 @@ class _ClientCard extends StatelessWidget {
           ],
         ],
       ),
+    );
+  }
+}
+
+class _ReminderIconButton extends StatelessWidget {
+  const _ReminderIconButton({required this.busy, this.onPressed});
+
+  final bool busy;
+  final VoidCallback? onPressed;
+
+  @override
+  Widget build(BuildContext context) {
+    return IconButton(
+      onPressed: busy ? null : onPressed,
+      tooltip: 'Envoyer un rappel',
+      style: IconButton.styleFrom(
+        foregroundColor: AppColors.coral,
+        minimumSize: const Size(34, 34),
+        padding: EdgeInsets.zero,
+        tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(9),
+        ),
+      ),
+      icon: busy
+          ? const SizedBox(
+              width: 16,
+              height: 16,
+              child: CircularProgressIndicator(strokeWidth: 2),
+            )
+          : const Icon(Icons.notifications_active_outlined, size: 18),
     );
   }
 }

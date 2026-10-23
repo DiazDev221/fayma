@@ -1,6 +1,8 @@
 import 'package:flutter/foundation.dart';
 
-/// Plafond de crédit proposé par défaut, en FCFA (règle de gestion n°1).
+/// Ancienne valeur de plafond proposée à la création d'un client. Conservée
+/// pour la compatibilité des bases et sauvegardes existantes : le plafond
+/// appliqué est désormais commun à la boutique et se règle dans « Ma boutique ».
 const int kDefaultCreditLimit = 10000;
 
 /// Client d'une boutique. Les montants sont en FCFA, sans décimales.
@@ -23,7 +25,9 @@ class Client {
   final String prenom;
   final String telephone;
 
-  /// Plafond de crédit autorisé pour ce client (F02).
+  /// Ancien plafond propre au client, conservé pour la compatibilité des
+  /// données. Le plafond de crédit appliqué est global à la boutique
+  /// (voir `ShopSettingsStore.readCreditLimit`).
   final int creditLimit;
 
   final DateTime createdAt;

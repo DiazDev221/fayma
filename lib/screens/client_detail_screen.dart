@@ -5,8 +5,10 @@ import 'package:go_router/go_router.dart';
 import '../models/operation.dart';
 import '../providers.dart';
 import '../router/app_router.dart';
+import '../services/operation_sms.dart';
 import '../theme/app_theme.dart';
 import '../utils/format.dart';
+import '../utils/share_origin.dart';
 import '../widgets/app_widgets.dart';
 
 /// Écran 03 - Fiche client : solde, actions et historique des opérations.
@@ -69,7 +71,7 @@ class ClientDetailScreen extends ConsumerWidget {
                           '${operations.length > 1 ? 's' : ''} au total',
                 ),
                 const SizedBox(height: 12),
-                _History(operations: operations),
+                _History(operations: operations, summary: summary),
               ],
             );
           },
@@ -163,13 +165,13 @@ class _HeaderBlock extends StatelessWidget {
   }
 }
 
-class _BalanceCard extends StatelessWidget {
+class _BalanceCard extends ConsumerWidget {
   const _BalanceCard({required this.summary});
 
   final ClientSummary summary;
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
     final textTheme = Theme.of(context).textTheme;
     final balance = summary.balance;
 
@@ -195,9 +197,10 @@ class _BalanceCard extends StatelessWidget {
       hint = 'Aucune dette, aucun dépôt en attente';
     }
 
-    final usage = summary.client.creditLimit <= 0
-        ? 1.0
-        : (balance.debt / summary.client.creditLimit).clamp(0.0, 1.0);
+    final creditLimit = ref.watch(shopCreditLimitProvider).valueOrNull;
+    final usage = creditLimit == null || creditLimit <= 0
+        ? 0.0
+        : (balance.debt / creditLimit).clamp(0.0, 1.0);
 
     return FaymaCard(
       gradient: AppGradients.ink,
@@ -267,42 +270,66 @@ class _BalanceCard extends StatelessWidget {
                 ),
               ),
               const SizedBox(height: 18),
-              Container(
-                padding: const EdgeInsets.symmetric(
-                  horizontal: 12,
-                  vertical: 10,
-                ),
-                decoration: BoxDecoration(
-                  color: Colors.white.withValues(alpha: 0.07),
+              Tooltip(
+                message:
+                    'Plafond commun à tous les clients. Touchez pour le modifier.',
+                child: InkWell(
+                  onTap: () => context.push(AppRoutes.shopSettings),
                   borderRadius: BorderRadius.circular(13),
-                  border: Border.all(
-                    color: Colors.white.withValues(alpha: 0.1),
-                  ),
-                ),
-                child: Row(
-                  children: [
-                    const Icon(
-                      Icons.shield_outlined,
-                      size: 16,
-                      color: AppColors.mintBright,
+                  child: Container(
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 12,
+                      vertical: 10,
                     ),
-                    const SizedBox(width: 7),
-                    Expanded(
-                      child: Text(
-                        'Plafond de crédit',
-                        style: textTheme.bodySmall?.copyWith(
-                          color: Colors.white.withValues(alpha: 0.7),
+                    decoration: BoxDecoration(
+                      color: Colors.white.withValues(alpha: 0.07),
+                      borderRadius: BorderRadius.circular(13),
+                      border: Border.all(
+                        color: Colors.white.withValues(alpha: 0.1),
+                      ),
+                    ),
+                    child: Row(
+                      children: [
+                        const Icon(
+                          Icons.shield_outlined,
+                          size: 16,
+                          color: AppColors.mintBright,
                         ),
-                      ),
+                        const SizedBox(width: 7),
+                        Expanded(
+                          child: Text(
+                            'Plafond de crédit',
+                            overflow: TextOverflow.ellipsis,
+                            style: textTheme.bodySmall?.copyWith(
+                              color: Colors.white.withValues(alpha: 0.7),
+                            ),
+                          ),
+                        ),
+                        const SizedBox(width: 6),
+                        Flexible(
+                          child: FittedBox(
+                            fit: BoxFit.scaleDown,
+                            alignment: Alignment.centerRight,
+                            child: Text(
+                              creditLimit == null
+                                  ? 'Aucune limite'
+                                  : formatFcfa(creditLimit),
+                              style: textTheme.titleSmall?.copyWith(
+                                color: Colors.white,
+                                fontWeight: FontWeight.w700,
+                              ),
+                            ),
+                          ),
+                        ),
+                        const SizedBox(width: 5),
+                        const Icon(
+                          Icons.chevron_right_rounded,
+                          size: 17,
+                          color: AppColors.mintBright,
+                        ),
+                      ],
                     ),
-                    Text(
-                      formatFcfa(summary.client.creditLimit),
-                      style: textTheme.titleSmall?.copyWith(
-                        color: Colors.white,
-                        fontWeight: FontWeight.w700,
-                      ),
-                    ),
-                  ],
+                  ),
                 ),
               ),
               if (summary.hasDebt) ...[
@@ -319,9 +346,11 @@ class _BalanceCard extends StatelessWidget {
                       ),
                     ),
                     Text(
-                      '${(usage * 100).round()} % du plafond',
+                      creditLimit == null
+                          ? 'Sans plafond'
+                          : '${(usage * 100).round()} % du plafond',
                       style: textTheme.bodySmall?.copyWith(
-                        color: usage > 1 ? accent : AppColors.mintBright,
+                        color: AppColors.mintBright,
                         fontWeight: FontWeight.w700,
                       ),
                     ),
@@ -343,10 +372,35 @@ class _BalanceCard extends StatelessWidget {
   }
 }
 
-class _Actions extends StatelessWidget {
+class _Actions extends ConsumerStatefulWidget {
   const _Actions({required this.summary});
 
   final ClientSummary summary;
+
+  @override
+  ConsumerState<_Actions> createState() => _ActionsState();
+}
+
+class _ActionsState extends ConsumerState<_Actions> {
+  bool _reminderBusy = false;
+
+  ClientSummary get summary => widget.summary;
+
+  Future<void> _sendReminder() async {
+    if (_reminderBusy) return;
+    setState(() => _reminderBusy = true);
+
+    try {
+      final sms = await prepareReminderSms(
+        ref: ref,
+        context: context,
+        summary: summary,
+      );
+      await sms.send();
+    } finally {
+      if (mounted) setState(() => _reminderBusy = false);
+    }
+  }
 
   Future<void> _openRepayOrDeposit(BuildContext context) async {
     final id = summary.client.id;
@@ -489,6 +543,28 @@ class _Actions extends StatelessWidget {
             summary.hasDebt ? 'Rembourser ou déposer' : 'Enregistrer un dépôt',
           ),
         ),
+        if (summary.hasDebt) ...[
+          const SizedBox(height: 10),
+          OutlinedButton.icon(
+            style: OutlinedButton.styleFrom(
+              foregroundColor: AppColors.coral,
+              side: const BorderSide(color: AppColors.border),
+              minimumSize: const Size.fromHeight(52),
+              shape: buttonShape,
+            ),
+            onPressed: _reminderBusy ? null : _sendReminder,
+            icon: _reminderBusy
+                ? const SizedBox(
+                    width: 18,
+                    height: 18,
+                    child: CircularProgressIndicator(strokeWidth: 2),
+                  )
+                : const Icon(Icons.notifications_active_outlined, size: 20),
+            label: Text(
+              _reminderBusy ? 'Préparation du rappel…' : 'Envoyer un rappel',
+            ),
+          ),
+        ],
       ],
     );
   }
@@ -598,14 +674,53 @@ class _OperationView {
   }
 }
 
-class _History extends ConsumerWidget {
-  const _History({required this.operations});
+class _History extends ConsumerStatefulWidget {
+  const _History({required this.operations, required this.summary});
 
   final List<Operation> operations;
+  final ClientSummary summary;
+
+  @override
+  ConsumerState<_History> createState() => _HistoryState();
+}
+
+class _HistoryState extends ConsumerState<_History> {
+  String? _busyOperationId;
+
+  Future<void> _shareInvoice(
+    BuildContext context,
+    Operation operation,
+    bool isCancelled,
+  ) async {
+    if (_busyOperationId != null) return;
+    setState(() => _busyOperationId = operation.id);
+
+    try {
+      await ref.read(pdfExportServiceProvider).shareOperationInvoice(
+            client: widget.summary.client,
+            operation: operation,
+            currentBalance: widget.summary.balance,
+            isCancelled: isCancelled,
+            creditLimit: ref.read(shopCreditLimitProvider).valueOrNull,
+            sharePositionOrigin: sharePositionOriginFor(context),
+          );
+    } catch (error) {
+      debugPrint('Génération de la facture PDF : $error');
+      if (!context.mounted) return;
+      ScaffoldMessenger.of(context)
+        ..hideCurrentSnackBar()
+        ..showSnackBar(
+          const SnackBar(
+            content: Text('Impossible de générer la facture PDF.'),
+          ),
+        );
+    } finally {
+      if (mounted) setState(() => _busyOperationId = null);
+    }
+  }
 
   Future<void> _confirmReverse(
     BuildContext context,
-    WidgetRef ref,
     Operation operation,
   ) async {
     final view = _OperationView.of(operation);
@@ -646,7 +761,8 @@ class _History extends ConsumerWidget {
   }
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
+  Widget build(BuildContext context) {
+    final operations = widget.operations;
     if (operations.isEmpty) {
       return const FaymaCard(
         padding: EdgeInsets.symmetric(vertical: 6),
@@ -680,17 +796,24 @@ class _History extends ConsumerWidget {
           _HistoryRow(
             operation: entry.value,
             isCancelled: reversedIds.contains(entry.value.id),
+            pdfBusy: _busyOperationId == entry.value.id,
+            onPdf: () => _shareInvoice(
+              context,
+              entry.value,
+              reversedIds.contains(entry.value.id),
+            ),
             onLongPress:
                 entry.value.isReversal || reversedIds.contains(entry.value.id)
                     ? null
-                    : () => _confirmReverse(context, ref, entry.value),
+                    : () => _confirmReverse(context, entry.value),
           ),
           const SizedBox(height: 10),
         ],
         const SizedBox(height: 2),
         const AppInfoBanner(
           icon: Icons.touch_app_outlined,
-          message: 'Appui long sur une opération pour l’annuler.',
+          message: 'Icône PDF pour partager une facture. Appui long sur une '
+              'opération pour l’annuler.',
           color: AppColors.textSecondary,
           background: AppColors.surfaceMuted,
         ),
@@ -703,11 +826,15 @@ class _HistoryRow extends StatelessWidget {
   const _HistoryRow({
     required this.operation,
     required this.isCancelled,
+    required this.pdfBusy,
+    this.onPdf,
     this.onLongPress,
   });
 
   final Operation operation;
   final bool isCancelled;
+  final bool pdfBusy;
+  final VoidCallback? onPdf;
   final VoidCallback? onLongPress;
 
   @override
@@ -795,6 +922,34 @@ class _HistoryRow extends StatelessWidget {
                 decoration: struck,
               ),
             ),
+            const SizedBox(width: 2),
+            if (pdfBusy)
+              const SizedBox(
+                width: 34,
+                height: 34,
+                child: Center(
+                  child: SizedBox(
+                    width: 16,
+                    height: 16,
+                    child: CircularProgressIndicator(strokeWidth: 2),
+                  ),
+                ),
+              )
+            else
+              IconButton(
+                onPressed: onPdf,
+                tooltip: 'Partager la facture PDF',
+                style: IconButton.styleFrom(
+                  foregroundColor: AppColors.textSecondary,
+                  minimumSize: const Size(34, 34),
+                  padding: EdgeInsets.zero,
+                  tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(9),
+                  ),
+                ),
+                icon: const Icon(Icons.picture_as_pdf_outlined, size: 19),
+              ),
           ],
         ),
       ),

@@ -72,7 +72,7 @@ class _PurchaseScreenState extends ConsumerState<PurchaseScreen> {
       items: List.of(_items),
       date: DateTime.now(),
     );
-    final sms = prepareOperationSms(
+    final sms = await prepareOperationSms(
       ref: ref,
       context: context,
       summary: summary,
@@ -140,7 +140,7 @@ class _PurchaseScreenState extends ConsumerState<PurchaseScreen> {
   Widget _buildContent(BuildContext context, ClientSummary summary) {
     final textTheme = Theme.of(context).textTheme;
     final balance = summary.balance;
-    final limit = summary.client.creditLimit;
+    final limit = ref.watch(shopCreditLimitProvider).valueOrNull;
 
     // Le dépôt du client est utilisé avant de créer une dette.
     final depositUsed = math.min(balance.deposit, _total);
@@ -344,7 +344,7 @@ class _SummaryPanel extends StatelessWidget {
   final int depositUsed;
   final bool overLimit;
   final int debtAfter;
-  final int limit;
+  final int? limit;
   final bool saving;
   final bool canSave;
   final VoidCallback onSave;
@@ -352,6 +352,7 @@ class _SummaryPanel extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final textTheme = Theme.of(context).textTheme;
+    final creditLimit = limit;
     return Container(
       padding: const EdgeInsets.fromLTRB(
         AppTheme.pagePadding,
@@ -393,12 +394,12 @@ class _SummaryPanel extends StatelessWidget {
             ),
             const SizedBox(height: 8),
           ],
-          if (overLimit) ...[
+          if (overLimit && creditLimit != null) ...[
             AppInfoBanner(
               icon: Icons.warning_amber_rounded,
               message: 'Plafond de crédit dépassé : la dette serait de '
                   '${formatFcfa(debtAfter)} pour un plafond de '
-                  '${formatFcfa(limit)}.',
+                  '${formatFcfa(creditLimit)}.',
               color: AppColors.coral,
               background: AppColors.coralSoft,
             ),

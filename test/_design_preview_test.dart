@@ -86,6 +86,12 @@ void main() {
   });
 
   testWidgets('preview screens', (tester) async {
+    // Par défaut, ce test vérifie simplement que chaque écran se met en page
+    // sans exception. Les captures sont écrites uniquement sur demande :
+    //   FAYMA_PREVIEW=1 flutter test test/_design_preview_test.dart \
+    //     --update-goldens
+    final capture = Platform.environment['FAYMA_PREVIEW'] == '1';
+
     tester.view.physicalSize = const Size(390, 844);
     tester.view.devicePixelRatio = 1.0;
     addTearDown(() {
@@ -96,6 +102,7 @@ void main() {
     Future<void> shot(Widget screen, String name) async {
       await tester.pumpWidget(_wrap(screen));
       await tester.pumpAndSettle();
+      if (!capture) return;
       await expectLater(
         find.byType(MaterialApp),
         matchesGoldenFile('/tmp/opencode/fayma_preview/$name.png'),

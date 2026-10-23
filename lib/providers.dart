@@ -1,3 +1,4 @@
+import 'package:flutter/foundation.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import 'data/credit_repository.dart';
@@ -6,6 +7,8 @@ import 'models/client.dart';
 import 'models/operation.dart';
 import 'services/backup/backup_service.dart';
 import 'services/backup/backup_settings.dart';
+import 'services/pdf/pdf_export_service.dart';
+import 'services/shop_settings.dart';
 import 'services/sms_sender.dart';
 
 /// Source de données de l'application.
@@ -28,12 +31,45 @@ final backupSettingsProvider = Provider<BackupSettingsStore>((ref) {
   return BackupSettings();
 });
 
+/// Paramètres de la boutique (nom des SMS et plafond de crédit commun).
+final shopSettingsProvider = Provider<ShopSettingsStore>((ref) {
+  return ShopSettings();
+});
+
+/// Nom de la boutique, chargé depuis les préférences locales.
+///
+/// Une erreur de stockage ne doit pas empêcher l'application de fonctionner :
+/// on retombe alors sur un nom vide, et les SMS sont envoyés sans signature.
+final shopNameProvider = FutureProvider<String>((ref) async {
+  try {
+    return await ref.watch(shopSettingsProvider).readShopName();
+  } catch (error) {
+    debugPrint('Lecture du nom de la boutique : $error');
+    return '';
+  }
+});
+
+/// Plafond de crédit commun à tous les clients. Null = aucune limite.
+final shopCreditLimitProvider = FutureProvider<int?>((ref) async {
+  try {
+    return await ref.watch(shopSettingsProvider).readCreditLimit();
+  } catch (error) {
+    debugPrint('Lecture du plafond de crédit : $error');
+    return null;
+  }
+});
+
 /// Export et restauration des données de la boutique.
 final backupServiceProvider = Provider<BackupService>((ref) {
   return BackupService(
     repository: ref.watch(creditRepositoryProvider),
     settings: ref.watch(backupSettingsProvider),
   );
+});
+
+/// Factures et rapport général au format PDF.
+final pdfExportServiceProvider = Provider<PdfExportService>((ref) {
+  return const PdfExportService();
 });
 
 /// Tous les clients de la boutique, triés par nom.

@@ -233,6 +233,11 @@ void main() {
       // 6 100 - 5 000 = 1 100 de dette, au-dessus du plafond.
       expect(balance.allowsPurchase(6100, 1000), isFalse);
     });
+
+    test('sans plafond, tous les achats sont acceptés', () {
+      final balance = computeBalance([_credit('a', 8000, 1)]);
+      expect(balance.allowsPurchase(1000000, null), isTrue);
+    });
   });
 
   group('Operation', () {

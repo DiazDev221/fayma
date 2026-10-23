@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_localizations/flutter_localizations.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -14,7 +15,9 @@ import 'package:fayma/screens/home_screen.dart';
 import 'package:fayma/screens/pick_contact_screen.dart';
 import 'package:fayma/screens/purchase_screen.dart';
 import 'package:fayma/screens/repayment_screen.dart';
+import 'package:fayma/screens/shop_settings_screen.dart';
 import 'package:fayma/services/backup/backup_settings.dart';
+import 'package:fayma/services/shop_settings.dart';
 import 'package:fayma/theme/app_theme.dart';
 
 class _FakeBackupSettings implements BackupSettingsStore {
@@ -36,12 +39,27 @@ class _FakeBackupSettings implements BackupSettingsStore {
   Future<void> setLastBackupAt(DateTime at) async {}
 }
 
+class _FakeShopSettings implements ShopSettingsStore {
+  @override
+  Future<String> readShopName() async => 'Boutique test';
+
+  @override
+  Future<void> saveShopName(String name) async {}
+
+  @override
+  Future<int?> readCreditLimit() async => null;
+
+  @override
+  Future<void> saveCreditLimit(int? limit) async {}
+}
+
 Widget _wrap(Widget child) => ProviderScope(
       overrides: [
         creditRepositoryProvider.overrideWithValue(
           InMemoryCreditRepository.withDemoData(),
         ),
         backupSettingsProvider.overrideWithValue(_FakeBackupSettings()),
+        shopSettingsProvider.overrideWithValue(_FakeShopSettings()),
       ],
       child: MaterialApp(
         theme: AppTheme.light,
@@ -61,6 +79,28 @@ void main() {
     await initializeDateFormatting('fr_FR');
   });
 
+  // Le plugin contacts n'existe pas dans les tests : on simule un refus pour
+  // que l'écran quitte son état de chargement et que la mise en page soit
+  // testable.
+  setUp(() {
+    TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
+        .setMockMethodCallHandler(
+      const MethodChannel('github.com/QuisApp/flutter_contacts'),
+      (call) async {
+        if (call.method == 'requestPermission') return false;
+        return <dynamic>[];
+      },
+    );
+  });
+
+  tearDown(() {
+    TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
+        .setMockMethodCallHandler(
+      const MethodChannel('github.com/QuisApp/flutter_contacts'),
+      null,
+    );
+  });
+
   final screens = <String, Widget>{
     'home': const HomeScreen(),
     'client': const ClientDetailScreen(clientId: 'c1'),
@@ -70,6 +110,7 @@ void main() {
     'deposit': const DepositScreen(clientId: 'c1'),
     'backup': const BackupScreen(),
     'contacts': const PickContactScreen(),
+    'settings': const ShopSettingsScreen(),
   };
 
   for (final entry in screens.entries) {

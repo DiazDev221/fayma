@@ -15,6 +15,7 @@ import '../services/backup/backup_service.dart';
 import '../services/backup/recovery_code.dart';
 import '../theme/app_theme.dart';
 import '../utils/format.dart';
+import '../utils/share_origin.dart';
 import '../widgets/app_widgets.dart';
 
 /// Export et restauration manuels d'une sauvegarde chiffrée.
@@ -74,6 +75,7 @@ class _BackupScreenState extends ConsumerState<BackupScreen> {
     setState(() => _busy = true);
     try {
       final service = ref.read(backupServiceProvider);
+      final shareOrigin = sharePositionOriginFor(context);
       final export = await service.export();
 
       final result = await SharePlus.instance.share(
@@ -83,6 +85,7 @@ class _BackupScreenState extends ConsumerState<BackupScreen> {
           files: [
             XFile(export.file.path, mimeType: backupMimeType),
           ],
+          sharePositionOrigin: shareOrigin,
         ),
       );
 

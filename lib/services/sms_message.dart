@@ -21,39 +21,73 @@ String buildSmsMessage({
 }) {
   final amount = _money(operation.amount);
   final date = formatDate(operation.date);
+  final greeting = 'Bonjour ${clientPrenom.trim()},';
 
   final String body;
   switch (operation.type) {
     case OperationType.credit:
       final items = operation.items.isEmpty
           ? ''
-          : ' (${operation.items.map((i) => '${i.name} ${_plain(i.price)}').join(', ')})';
-      body = 'achat à crédit de $amount le $date$items. '
-          '${_balanceLine(balanceAfter, debtLabel: 'Total dû')}';
+          : '\nDétail : '
+              '${operation.items.map((i) => '${i.name} (${_plain(i.price)})').join(', ')}.';
+      body = '$greeting\n'
+          'Votre achat à crédit du $date a bien été enregistré.$items\n'
+          'Montant : $amount.\n'
+          '${_balanceLine(balanceAfter)}';
     case OperationType.repayment:
-      body = 'remboursement de $amount reçu le $date. '
-          '${_balanceLine(balanceAfter, debtLabel: 'Reste à payer')} Merci.';
+      body = '$greeting\n'
+          'Votre remboursement de $amount a bien été reçu le $date.\n'
+          '${_balanceLine(balanceAfter)}';
     case OperationType.deposit:
-      body = 'depot de $amount reçu le $date. '
-          '${_balanceLine(balanceAfter, debtLabel: 'Reste à payer')}';
+      body = '$greeting\n'
+          'Votre versement de $amount a bien été reçu le $date.\n'
+          '${_balanceLine(balanceAfter)}';
   }
 
   final name = shopName?.trim();
-  final signature = (name == null || name.isEmpty) ? '' : ' - $name';
-  return _toGsm('Bonjour ${clientPrenom.trim()}, $body$signature');
+  final signature = (name == null || name.isEmpty) ? '' : '\n$name';
+  return _toGsm('$body\nMerci de votre confiance.$signature');
 }
 
-/// Dernière phrase : ce que le client doit, a en dépôt, ou « compte à jour ».
-String _balanceLine(Balance balance, {required String debtLabel}) {
-  if (balance.debt > 0) return '$debtLabel : ${_money(balance.debt)}.';
+/// Rédige le SMS de rappel envoyé à un client qui doit encore de l'argent.
+///
+/// Le rappel indique le reste à payer et la date de la dette la plus ancienne.
+/// Comme [buildSmsMessage], le texte reste dans l'alphabet GSM pour ne pas
+/// faire basculer le SMS en Unicode.
+String buildReminderSmsMessage({
+  required String clientPrenom,
+  required Balance balance,
+  String? shopName,
+}) {
+  assert(balance.debt > 0, 'Un rappel ne se justifie que si le client doit.');
+
+  final greeting = 'Bonjour ${clientPrenom.trim()},';
+  final oldest = balance.oldestDebtDate;
+  final dateLine =
+      oldest == null ? '' : '\nDette la plus ancienne : ${formatDate(oldest)}.';
+
+  final body = '$greeting\n'
+      'Rappel : il vous reste ${_money(balance.debt)} à payer.'
+      '$dateLine\n'
+      'Merci de penser à votre règlement.';
+
+  final name = shopName?.trim();
+  final signature = (name == null || name.isEmpty) ? '' : '\n$name';
+  return _toGsm('$body$signature');
+}
+
+/// Situation après l'opération : dette restante, dépôt disponible ou
+/// « compte à jour ».
+String _balanceLine(Balance balance) {
+  if (balance.debt > 0) return 'Reste à payer : ${_money(balance.debt)}.';
   if (balance.deposit > 0) {
-    return 'Solde en depot : ${_money(balance.deposit)}.';
+    return 'Solde disponible : ${_money(balance.deposit)}.';
   }
   return 'Compte à jour.';
 }
 
 /// Nombre avec espaces normaux, sans unité. Ex : "25 000".
-String _plain(int amount) => formatAmount(amount).replaceAll(' ', ' ');
+String _plain(int amount) => formatAmount(amount).replaceAll('\u00A0', ' ');
 
 /// Montant avec espaces normaux. Ex : "25 000 FCFA".
 String _money(int amount) => '${_plain(amount)} FCFA';
@@ -62,8 +96,8 @@ String _money(int amount) => '${_plain(amount)} FCFA';
 /// équivalent simple. Ne touche pas aux lettres déjà valides (é, è, à, ç...).
 String _toGsm(String text) {
   const replacements = {
-    ' ': ' ',
-    ' ': ' ',
+    '\u00A0': ' ',
+    '\u202F': ' ',
     'â': 'a',
     'ä': 'a',
     'ê': 'e',
@@ -73,6 +107,7 @@ String _toGsm(String text) {
     'ô': 'o',
     'û': 'u',
     'œ': 'oe',
+    'æ': 'ae',
     'Â': 'A',
     'Ê': 'E',
     'Î': 'I',

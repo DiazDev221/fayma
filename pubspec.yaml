@@ -34,11 +34,14 @@ dependencies:
   file_picker: ^13.1.0
   shared_preferences: ^2.5.6
   package_info_plus: ^10.2.2
+  pdf: ^3.13.1
   # Permission d'envoyer des SMS (Android)
 dev_dependencies:
   flutter_test:
     sdk: flutter
   flutter_lints: ^4.0.0
+  # Génération des icônes de lancement (outil de build uniquement)
+  flutter_launcher_icons: ^0.14.4
 
 flutter:
   uses-material-design: true
@@ -55,3 +58,15 @@ flutter:
           weight: 700
         - asset: assets/fonts/Manrope-ExtraBold.ttf
           weight: 800
+          
+flutter_launcher_icons:
+  android: true
+  ios: true
+  image_path: "assets/icon/fayma_icon.png"
+  # Icône iOS pleine (sans coins transparents) : iOS applique lui-même
+  # le masque arrondi, et l'App Store refuse les icônes avec canal alpha.
+  image_path_ios: "assets/icon/fayma_icon_ios.png"
+  remove_alpha_ios: true
+  background_color_ios: "#0A3D2C"
+  adaptive_icon_background: "#0A3D2C"
+  adaptive_icon_foreground: "assets/icon/fayma_icon.png"

@@ -12,19 +12,31 @@ void main() {
   testWidgets('colors', (tester) async {
     await initializeDateFormatting('fr_FR');
     await tester.pumpWidget(ProviderScope(
-      overrides: [creditRepositoryProvider.overrideWithValue(InMemoryCreditRepository.withDemoData())],
+      overrides: [
+        creditRepositoryProvider
+            .overrideWithValue(InMemoryCreditRepository.withDemoData())
+      ],
       child: MaterialApp(theme: AppTheme.light, home: const HomeScreen()),
     ));
     await tester.pumpAndSettle();
-    for (final label in ['Fayma', 'Clients', 'Moussa Diop', '3 clients au total']) {
+    for (final label in [
+      'Fayma',
+      'Clients',
+      'Moussa Diop',
+      '3 clients au total'
+    ]) {
       final finder = find.text(label);
-      if (finder.evaluate().isEmpty) { print('missing $label'); continue; }
+      if (finder.evaluate().isEmpty) {
+        debugPrint('missing $label');
+        continue;
+      }
       final rp = tester.renderObject<RenderParagraph>(finder.first);
-      print('$label => ${rp.text.style?.color} / size ${rp.text.style?.fontSize} / weight ${rp.text.style?.fontWeight}');
+      debugPrint(
+          '$label => ${rp.text.style?.color} / size ${rp.text.style?.fontSize} / weight ${rp.text.style?.fontWeight}');
     }
     final theme = AppTheme.light;
-    print('theme headlineSmall ${theme.textTheme.headlineSmall?.color}');
-    print('theme titleLarge ${theme.textTheme.titleLarge?.color}');
-    print('theme bodyMedium ${theme.textTheme.bodyMedium?.color}');
+    debugPrint('theme headlineSmall ${theme.textTheme.headlineSmall?.color}');
+    debugPrint('theme titleLarge ${theme.textTheme.titleLarge?.color}');
+    debugPrint('theme bodyMedium ${theme.textTheme.bodyMedium?.color}');
   });
 }

@@ -8,6 +8,7 @@ import '../screens/home_screen.dart';
 import '../screens/pick_contact_screen.dart';
 import '../screens/purchase_screen.dart';
 import '../screens/repayment_screen.dart';
+import '../screens/shop_settings_screen.dart';
 
 /// Chemins de l'application, centralisés pour éviter les fautes de frappe.
 class AppRoutes {
@@ -17,6 +18,7 @@ class AppRoutes {
   static const newClient = '/clients/new';
   static const pickContact = '/clients/contacts';
   static const backup = '/backup';
+  static const shopSettings = '/settings';
 
   static const _client = '/clients';
   static String client(String id) => '$_client/$id';
@@ -49,6 +51,11 @@ final GoRouter appRouter = GoRouter(
     GoRoute(
       path: AppRoutes.backup,
       builder: (context, state) => const BackupScreen(),
+    ),
+    // Paramètres de la boutique (nom utilisé dans les SMS)
+    GoRoute(
+      path: AppRoutes.shopSettings,
+      builder: (context, state) => const ShopSettingsScreen(),
     ),
     // 03 - Fiche client
     GoRoute(

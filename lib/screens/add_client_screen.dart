@@ -179,11 +179,16 @@ class _AddClientScreenState extends ConsumerState<AddClientScreen> {
                       Row(
                         children: [
                           const Expanded(child: Divider()),
-                          Padding(
-                            padding: const EdgeInsets.symmetric(horizontal: 12),
-                            child: Text(
-                              'ou saisir manuellement',
-                              style: textTheme.bodySmall,
+                          Flexible(
+                            child: Padding(
+                              padding:
+                                  const EdgeInsets.symmetric(horizontal: 12),
+                              child: Text(
+                                'ou saisir manuellement',
+                                maxLines: 1,
+                                overflow: TextOverflow.ellipsis,
+                                style: textTheme.bodySmall,
+                              ),
                             ),
                           ),
                           const Expanded(child: Divider()),

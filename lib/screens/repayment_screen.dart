@@ -58,7 +58,7 @@ class _RepaymentScreenState extends ConsumerState<RepaymentScreen> {
       amount: _amount,
       date: DateTime.now(),
     );
-    final sms = prepareOperationSms(
+    final sms = await prepareOperationSms(
       ref: ref,
       context: context,
       summary: summary,
