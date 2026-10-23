@@ -28,6 +28,20 @@ String formatSignedFcfa(int amount) {
 /// Nécessite `initializeDateFormatting('fr_FR')` (fait dans main.dart).
 String formatDate(DateTime date) => DateFormat('d MMM y', 'fr_FR').format(date);
 
+/// Date et heure, pour les sauvegardes distantes.
+String formatDateTime(DateTime date) {
+  return DateFormat('d MMM y, HH:mm', 'fr_FR').format(date);
+}
+
+/// Taille de fichier lisible. Ex : 184320 -> "180 Ko".
+String formatFileSize(int? bytes) {
+  if (bytes == null || bytes <= 0) return '';
+  if (bytes < 1024) return '$bytes o';
+  final kb = bytes / 1024;
+  if (kb < 1024) return '${kb.round()} Ko';
+  return '${(kb / 1024).toStringAsFixed(1)} Mo';
+}
+
 /// Numéro sénégalais à 9 chiffres. Ex : "771234567" -> "77 123 45 67".
 /// Le préfixe +221 est retiré. Autre format : renvoyé tel quel.
 String formatPhone(String raw) {

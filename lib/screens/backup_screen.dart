@@ -12,6 +12,8 @@ import '../router/app_router.dart';
 import '../services/backup/backup_exception.dart';
 import '../services/backup/backup_format.dart';
 import '../services/backup/backup_service.dart';
+import '../services/backup/drive/drive_exception.dart';
+import '../services/backup/drive/drive_models.dart';
 import '../services/backup/recovery_code.dart';
 import '../theme/app_theme.dart';
 import '../utils/format.dart';
@@ -31,6 +33,8 @@ class _BackupScreenState extends ConsumerState<BackupScreen> {
   DateTime? _lastBackup;
   String? _loadError;
   bool _busy = false;
+  DriveStatus? _driveStatus;
+  bool _driveLoading = true;
 
   @override
   void initState() {
@@ -39,15 +43,21 @@ class _BackupScreenState extends ConsumerState<BackupScreen> {
   }
 
   void _retryLoadSettings() {
-    setState(() => _loadError = null);
+    setState(() {
+      _loadError = null;
+      _driveLoading = true;
+    });
     _loadSettings();
   }
 
   Future<void> _loadSettings() async {
+    String? code;
+    DateTime? last;
+    String? loadError;
+
     try {
       final service = ref.read(backupServiceProvider);
-      final code = await service.ensureRecoveryCode();
-      DateTime? last;
+      code = await service.ensureRecoveryCode();
       try {
         last = await service.lastBackupAt();
       } catch (error) {
@@ -55,18 +65,35 @@ class _BackupScreenState extends ConsumerState<BackupScreen> {
         // disponibles même si les préférences sont illisibles.
         debugPrint('Date de dernière sauvegarde : $error');
       }
-      if (!mounted) return;
-      setState(() {
-        _code = code;
-        _lastBackup = last;
-        _loadError = null;
-      });
     } catch (error) {
       debugPrint('Chargement des paramètres de sauvegarde : $error');
+      loadError = 'Impossible de charger le code de récupération.';
+    }
+
+    DriveStatus? driveStatus;
+    try {
+      driveStatus = await ref.read(driveBackupServiceProvider).status();
+    } catch (error) {
+      debugPrint('Chargement de la sauvegarde Google Drive : $error');
+    }
+
+    if (!mounted) return;
+    setState(() {
+      _code = code;
+      _lastBackup = last;
+      _loadError = loadError;
+      _driveStatus = driveStatus;
+      _driveLoading = false;
+    });
+  }
+
+  Future<void> _refreshDriveStatus() async {
+    try {
+      final status = await ref.read(driveBackupServiceProvider).status();
       if (!mounted) return;
-      setState(() {
-        _loadError = 'Impossible de charger le code de récupération.';
-      });
+      setState(() => _driveStatus = status);
+    } catch (error) {
+      debugPrint('Actualisation de Google Drive : $error');
     }
   }
 
@@ -174,6 +201,254 @@ class _BackupScreenState extends ConsumerState<BackupScreen> {
     } finally {
       if (mounted) setState(() => _busy = false);
     }
+  }
+
+  Future<void> _connectDrive() async {
+    if (_busy) return;
+    setState(() => _busy = true);
+    try {
+      await ref.read(driveBackupServiceProvider).connect();
+      await _refreshDriveStatus();
+      _showMessage(
+        'Google Drive connecté. La sauvegarde automatique est activée.',
+      );
+    } on DriveException catch (error) {
+      if (error.kind != DriveErrorKind.cancelled) _showMessage(error.message);
+    } catch (error) {
+      debugPrint('Connexion Google Drive : $error');
+      _showMessage('Impossible de connecter Google Drive. Réessayez.');
+    } finally {
+      if (mounted) setState(() => _busy = false);
+    }
+  }
+
+  Future<void> _toggleDriveAuto(bool enabled) async {
+    if (_busy) return;
+    setState(() => _busy = true);
+    try {
+      await ref.read(driveBackupServiceProvider).setAutoBackupEnabled(enabled);
+      await _refreshDriveStatus();
+      _showMessage(
+        enabled
+            ? 'Sauvegarde automatique activée : une fois par jour.'
+            : 'Sauvegarde automatique désactivée.',
+      );
+    } on DriveException catch (error) {
+      if (error.kind != DriveErrorKind.cancelled) _showMessage(error.message);
+      await _refreshDriveStatus();
+    } catch (error) {
+      debugPrint('Activation de la sauvegarde Drive : $error');
+      _showMessage('Impossible de modifier la sauvegarde automatique.');
+    } finally {
+      if (mounted) setState(() => _busy = false);
+    }
+  }
+
+  Future<void> _backupToDrive() async {
+    if (_busy) return;
+    setState(() => _busy = true);
+    try {
+      final result = await ref
+          .read(driveBackupServiceProvider)
+          .backupNow(interactive: true);
+      await _refreshDriveStatus();
+      if (mounted) setState(() => _lastBackup = result.createdAt);
+      _showMessage(
+        'Sauvegarde envoyée sur Google Drive : ${result.clientCount} '
+        'client${result.clientCount > 1 ? 's' : ''}, '
+        '${result.operationCount} opération'
+        '${result.operationCount > 1 ? 's' : ''}.',
+      );
+    } on DriveException catch (error) {
+      if (error.kind != DriveErrorKind.cancelled) _showMessage(error.message);
+    } catch (error) {
+      debugPrint('Sauvegarde vers Google Drive : $error');
+      _showMessage('Impossible d\'envoyer la sauvegarde sur Google Drive.');
+    } finally {
+      if (mounted) setState(() => _busy = false);
+    }
+  }
+
+  Future<void> _disconnectDrive() async {
+    if (_busy) return;
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (dialogContext) => AlertDialog(
+        title: const Text('Déconnecter Google Drive ?'),
+        content: const Text(
+          'La sauvegarde automatique sera désactivée. Les fichiers déjà '
+          'envoyés restent dans votre Google Drive.',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(dialogContext).pop(false),
+            child: const Text('Annuler'),
+          ),
+          TextButton(
+            onPressed: () => Navigator.of(dialogContext).pop(true),
+            child: const Text(
+              'Déconnecter',
+              style: TextStyle(color: AppColors.coral),
+            ),
+          ),
+        ],
+      ),
+    );
+    if (confirmed != true || !mounted) return;
+
+    setState(() => _busy = true);
+    try {
+      await ref.read(driveBackupServiceProvider).disconnect();
+      await _refreshDriveStatus();
+      _showMessage('Google Drive déconnecté.');
+    } catch (error) {
+      debugPrint('Déconnexion Google Drive : $error');
+      _showMessage('Impossible de déconnecter Google Drive.');
+    } finally {
+      if (mounted) setState(() => _busy = false);
+    }
+  }
+
+  Future<void> _restoreFromDrive() async {
+    if (_busy) return;
+
+    setState(() => _busy = true);
+    List<DriveBackupFile> files;
+    try {
+      files = await ref.read(driveBackupServiceProvider).listBackups(
+            interactive: true,
+          );
+    } on DriveException catch (error) {
+      _showMessage(error.message);
+      return;
+    } catch (error) {
+      debugPrint('Liste des sauvegardes Drive : $error');
+      _showMessage('Impossible de lire la liste des sauvegardes Drive.');
+      return;
+    } finally {
+      if (mounted) setState(() => _busy = false);
+    }
+    if (!mounted) return;
+
+    if (files.isEmpty) {
+      _showMessage('Aucune sauvegarde Fayma dans votre Google Drive.');
+      return;
+    }
+
+    final selected = await _pickRemoteBackup(files);
+    if (selected == null || !mounted) return;
+
+    final code = await _askRecoveryCode();
+    if (code == null || !mounted) return;
+
+    setState(() => _busy = true);
+    BackupPreview? preview;
+    try {
+      preview = await ref
+          .read(driveBackupServiceProvider)
+          .inspectRemote(selected, code, interactive: true);
+    } on BackupException catch (error) {
+      _showMessage(error.message);
+      return;
+    } on DriveException catch (error) {
+      _showMessage(error.message);
+      return;
+    } catch (error) {
+      debugPrint('Téléchargement de la sauvegarde Drive : $error');
+      _showMessage('Impossible de télécharger cette sauvegarde.');
+      return;
+    } finally {
+      if (mounted) setState(() => _busy = false);
+    }
+    if (!mounted) return;
+
+    final confirmed = await _confirmRestore(preview);
+    if (confirmed != true || !mounted) return;
+
+    setState(() => _busy = true);
+    try {
+      await ref.read(backupServiceProvider).restore(preview);
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Sauvegarde restaurée depuis Drive.')),
+      );
+      context.go(AppRoutes.home);
+    } on BackupException catch (error) {
+      _showMessage(error.message);
+    } catch (error) {
+      debugPrint('Restauration depuis Google Drive : $error');
+      _showMessage(
+        'La restauration a échoué. Vos données actuelles sont intactes.',
+      );
+    } finally {
+      if (mounted) setState(() => _busy = false);
+    }
+  }
+
+  Future<DriveBackupFile?> _pickRemoteBackup(List<DriveBackupFile> files) {
+    return showModalBottomSheet<DriveBackupFile>(
+      context: context,
+      isScrollControlled: true,
+      showDragHandle: true,
+      builder: (sheetContext) {
+        final textTheme = Theme.of(sheetContext).textTheme;
+        return SafeArea(
+          child: ConstrainedBox(
+            constraints: BoxConstraints(
+              maxHeight: MediaQuery.sizeOf(sheetContext).height * 0.72,
+            ),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Padding(
+                  padding: const EdgeInsets.fromLTRB(20, 0, 20, 8),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        'Sauvegardes Google Drive',
+                        style: textTheme.titleLarge,
+                      ),
+                      const SizedBox(height: 4),
+                      Text(
+                        'Choisissez la sauvegarde à restaurer.',
+                        style: textTheme.bodySmall,
+                      ),
+                    ],
+                  ),
+                ),
+                Flexible(
+                  child: ListView.separated(
+                    shrinkWrap: true,
+                    padding: const EdgeInsets.fromLTRB(12, 4, 12, 20),
+                    itemCount: files.length,
+                    separatorBuilder: (_, __) => const Divider(height: 1),
+                    itemBuilder: (context, index) {
+                      final file = files[index];
+                      final size = formatFileSize(file.size);
+                      return ListTile(
+                        leading: const Icon(
+                          Icons.cloud_download_outlined,
+                          color: AppColors.indigo,
+                        ),
+                        title: Text(formatDateTime(file.createdAt)),
+                        subtitle: Text(
+                          size.isEmpty ? file.name : '${file.name}  •  $size',
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                        ),
+                        onTap: () => Navigator.of(sheetContext).pop(file),
+                      );
+                    },
+                  ),
+                ),
+              ],
+            ),
+          ),
+        );
+      },
+    );
   }
 
   Future<String?> _askRecoveryCode() {
@@ -353,15 +628,22 @@ class _BackupScreenState extends ConsumerState<BackupScreen> {
                       ),
                     ),
                   ],
-                  const SizedBox(height: 20),
-                  const AppInfoBanner(
-                    icon: Icons.cloud_outlined,
-                    title: 'Google Drive bientôt automatique',
-                    message: 'La sauvegarde automatique vers Google Drive '
-                        'sera ajoutée dans une prochaine étape. En attendant, '
-                        'exportez régulièrement votre fichier.',
-                    color: AppColors.indigo,
-                    background: AppColors.indigoSoft,
+                  const SizedBox(height: 26),
+                  const AppSectionHeader(
+                    title: 'Sauvegarde Google Drive',
+                    subtitle: 'Une copie chiffrée par jour dans votre Drive, '
+                        'en plus de l’export manuel.',
+                  ),
+                  const SizedBox(height: 12),
+                  _DriveBackupCard(
+                    status: _driveStatus,
+                    loading: _driveLoading,
+                    busy: _busy,
+                    onConnect: _connectDrive,
+                    onDisconnect: _disconnectDrive,
+                    onToggleAuto: _toggleDriveAuto,
+                    onBackupNow: _backupToDrive,
+                    onRestore: _restoreFromDrive,
                   ),
                 ],
               ),
@@ -533,6 +815,237 @@ class _RecoveryCodeCard extends StatelessWidget {
                   ),
                 ),
               ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _DriveBackupCard extends StatelessWidget {
+  const _DriveBackupCard({
+    required this.status,
+    required this.loading,
+    required this.busy,
+    required this.onConnect,
+    required this.onDisconnect,
+    required this.onToggleAuto,
+    required this.onBackupNow,
+    required this.onRestore,
+  });
+
+  final DriveStatus? status;
+  final bool loading;
+  final bool busy;
+  final VoidCallback onConnect;
+  final VoidCallback onDisconnect;
+  final ValueChanged<bool> onToggleAuto;
+  final VoidCallback onBackupNow;
+  final VoidCallback onRestore;
+
+  @override
+  Widget build(BuildContext context) {
+    final textTheme = Theme.of(context).textTheme;
+
+    if (loading) {
+      return const FaymaCard(
+        padding: EdgeInsets.symmetric(vertical: 20),
+        child: AppLoading(label: 'Vérification de Google Drive…'),
+      );
+    }
+
+    final status = this.status;
+    if (status == null) {
+      return const AppInfoBanner(
+        icon: Icons.cloud_off_outlined,
+        message: 'Google Drive est indisponible pour le moment. '
+            'La sauvegarde manuelle reste utilisable.',
+        color: AppColors.indigo,
+        background: AppColors.indigoSoft,
+      );
+    }
+
+    if (!status.supported) {
+      return const AppInfoBanner(
+        icon: Icons.cloud_off_outlined,
+        message: 'La sauvegarde Google Drive n\'est pas disponible sur '
+            'cet appareil. Utilisez l\'export manuel.',
+        color: AppColors.indigo,
+        background: AppColors.indigoSoft,
+      );
+    }
+
+    if (!status.configured) {
+      return const AppInfoBanner(
+        icon: Icons.settings_outlined,
+        title: 'Google Drive non configuré',
+        message: 'Cette version de Fayma n\'a pas reçu les identifiants '
+            'Google Drive. L\'export manuel reste disponible.',
+        color: AppColors.indigo,
+        background: AppColors.indigoSoft,
+      );
+    }
+
+    final account = status.account;
+    if (account == null) {
+      return FaymaCard(
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              children: [
+                Container(
+                  width: 42,
+                  height: 42,
+                  decoration: BoxDecoration(
+                    color: AppColors.indigoSoft,
+                    borderRadius: BorderRadius.circular(13),
+                  ),
+                  child: const Icon(
+                    Icons.cloud_queue_rounded,
+                    color: AppColors.indigo,
+                    size: 22,
+                  ),
+                ),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text('Connecter votre Drive',
+                          style: textTheme.titleMedium),
+                      const SizedBox(height: 2),
+                      Text(
+                        'Les sauvegardes partiront dans un dossier visible '
+                        '« Sauvegardes Fayma ».',
+                        style: textTheme.bodySmall,
+                      ),
+                    ],
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: 16),
+            FilledButton.icon(
+              onPressed: busy ? null : onConnect,
+              icon: const Icon(Icons.login_rounded, size: 20),
+              label: const Text('Connecter Google Drive'),
+            ),
+            const SizedBox(height: 10),
+            Text(
+              'Fayma ne voit que les fichiers qu\'elle crée. Votre code de '
+              'récupération reste indispensable pour les ouvrir.',
+              style: textTheme.bodySmall,
+            ),
+          ],
+        ),
+      );
+    }
+
+    return FaymaCard(
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Container(
+                width: 42,
+                height: 42,
+                decoration: BoxDecoration(
+                  color: AppColors.mintSoft,
+                  borderRadius: BorderRadius.circular(13),
+                ),
+                child: const Icon(
+                  Icons.cloud_done_outlined,
+                  color: AppColors.mintDark,
+                  size: 22,
+                ),
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      account.label,
+                      style: textTheme.titleMedium,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                    Text(
+                      account.email,
+                      style: textTheme.bodySmall,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                  ],
+                ),
+              ),
+              const SizedBox(width: 8),
+              const AppStatusPill(
+                label: 'Connecté',
+                color: AppColors.mintDark,
+                background: AppColors.mintSoft,
+                icon: Icons.check_rounded,
+                compact: true,
+              ),
+            ],
+          ),
+          const SizedBox(height: 16),
+          Container(
+            decoration: BoxDecoration(
+              color: AppColors.surfaceMuted,
+              borderRadius: BorderRadius.circular(16),
+            ),
+            child: SwitchListTile.adaptive(
+              value: status.autoBackupEnabled,
+              onChanged: busy ? null : onToggleAuto,
+              contentPadding: const EdgeInsets.symmetric(horizontal: 12),
+              secondary: const Icon(
+                Icons.schedule_rounded,
+                color: AppColors.indigo,
+              ),
+              title: Text(
+                'Sauvegarde automatique',
+                style: textTheme.titleSmall,
+              ),
+              subtitle:
+                  const Text('Une fois par jour, à l\'ouverture de Fayma.'),
+            ),
+          ),
+          const SizedBox(height: 14),
+          FilledButton.icon(
+            onPressed: busy ? null : onBackupNow,
+            icon: const Icon(Icons.cloud_upload_outlined, size: 20),
+            label: const Text('Sauvegarder maintenant'),
+          ),
+          const SizedBox(height: 10),
+          OutlinedButton.icon(
+            onPressed: busy ? null : onRestore,
+            icon: const Icon(Icons.cloud_download_outlined, size: 20),
+            label: const Text('Restaurer depuis Drive'),
+          ),
+          if (status.lastBackupAt != null) ...[
+            const SizedBox(height: 10),
+            Center(
+              child: Text(
+                'Dernière sauvegarde Drive : '
+                '${formatDateTime(status.lastBackupAt!)}',
+                style: textTheme.bodySmall,
+                textAlign: TextAlign.center,
+              ),
+            ),
+          ],
+          const SizedBox(height: 4),
+          Align(
+            alignment: Alignment.centerRight,
+            child: TextButton(
+              onPressed: busy ? null : onDisconnect,
+              child: const Text(
+                'Déconnecter',
+                style: TextStyle(color: AppColors.coral),
+              ),
             ),
           ),
         ],

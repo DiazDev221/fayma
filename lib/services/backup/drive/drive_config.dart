@@ -1,0 +1,66 @@
+import 'package:flutter/foundation.dart';
+
+/// Configuration OAuth de Google Drive, fournie au moment de la compilation.
+///
+/// Les identifiants ne sont pas des secrets (ils identifient l'application
+/// auprès de Google) et sont passés avec `--dart-define` ou
+/// `--dart-define-from-file`. Voir `README.md`, section Google Drive.
+class DriveConfig {
+  const DriveConfig({
+    required this.androidServerClientId,
+    required this.iosClientId,
+  });
+
+  factory DriveConfig.fromEnvironment() {
+    return const DriveConfig(
+      androidServerClientId: String.fromEnvironment(
+        'FAYMA_GOOGLE_SERVER_CLIENT_ID',
+      ),
+      iosClientId: String.fromEnvironment(
+        'FAYMA_GOOGLE_IOS_CLIENT_ID',
+      ),
+    );
+  }
+
+  /// Client OAuth de type « Web » créé dans Google Cloud.
+  ///
+  /// Android l'exige comme `serverClientId` pour obtenir un jeton Drive.
+  final String androidServerClientId;
+
+  /// Client OAuth de type « iOS » créé dans Google Cloud.
+  final String iosClientId;
+
+  bool get isSupported {
+    if (kIsWeb) return false;
+    return defaultTargetPlatform == TargetPlatform.android ||
+        defaultTargetPlatform == TargetPlatform.iOS;
+  }
+
+  bool get isConfigured {
+    if (!isSupported) return false;
+    return switch (defaultTargetPlatform) {
+      TargetPlatform.android => androidServerClientId.trim().isNotEmpty,
+      TargetPlatform.iOS => iosClientId.trim().isNotEmpty,
+      _ => false,
+    };
+  }
+
+  /// Identifiant à transmettre à `GoogleSignIn.initialize` pour la
+  /// plateforme courante.
+  String? get clientId {
+    if (defaultTargetPlatform == TargetPlatform.iOS &&
+        iosClientId.trim().isNotEmpty) {
+      return iosClientId.trim();
+    }
+    return null;
+  }
+
+  /// Identifiant serveur (client Web) utilisé par Android.
+  String? get serverClientId {
+    if (defaultTargetPlatform == TargetPlatform.android &&
+        androidServerClientId.trim().isNotEmpty) {
+      return androidServerClientId.trim();
+    }
+    return null;
+  }
+}

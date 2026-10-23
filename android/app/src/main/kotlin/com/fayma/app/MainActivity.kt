@@ -1,4 +1,4 @@
-package com.example.fayma
+package com.fayma.app
 
 import android.os.Build
 import android.telephony.SmsManager

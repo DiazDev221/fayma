@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:io';
 
 import 'package:flutter/material.dart';
@@ -35,8 +36,60 @@ Future<void> main() async {
   );
 }
 
-class FaymaApp extends StatelessWidget {
+class FaymaApp extends ConsumerStatefulWidget {
   const FaymaApp({super.key});
+
+  @override
+  ConsumerState<FaymaApp> createState() => _FaymaAppState();
+}
+
+class _FaymaAppState extends ConsumerState<FaymaApp>
+    with WidgetsBindingObserver {
+  Timer? _autoBackupTimer;
+
+  @override
+  void initState() {
+    super.initState();
+    WidgetsBinding.instance.addObserver(this);
+    WidgetsBinding.instance.addPostFrameCallback((_) => _startAutoBackup());
+    // Si l'application reste ouverte plusieurs jours, la vérification
+    // horaire déclenche la sauvegarde quotidienne sans redémarrage.
+    _autoBackupTimer = Timer.periodic(
+      const Duration(hours: 1),
+      (_) => _maybeBackup(),
+    );
+  }
+
+  @override
+  void dispose() {
+    _autoBackupTimer?.cancel();
+    WidgetsBinding.instance.removeObserver(this);
+    super.dispose();
+  }
+
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    if (state == AppLifecycleState.resumed) {
+      _maybeBackup();
+    }
+  }
+
+  void _startAutoBackup() {
+    if (!ref.read(driveBackupServiceProvider).isAvailable) {
+      _autoBackupTimer?.cancel();
+      _autoBackupTimer = null;
+      return;
+    }
+    _maybeBackup();
+  }
+
+  /// Sauvegarde quotidienne silencieuse : ne bloque jamais l'interface et
+  /// n'affiche aucune fenêtre de connexion.
+  void _maybeBackup() {
+    final service = ref.read(driveBackupServiceProvider);
+    if (!service.isAvailable) return;
+    unawaited(service.maybeAutoBackup());
+  }
 
   @override
   Widget build(BuildContext context) {

@@ -7,6 +7,11 @@ import 'models/client.dart';
 import 'models/operation.dart';
 import 'services/backup/backup_service.dart';
 import 'services/backup/backup_settings.dart';
+import 'services/backup/drive/drive_api.dart';
+import 'services/backup/drive/drive_auth.dart';
+import 'services/backup/drive/drive_backup_service.dart';
+import 'services/backup/drive/drive_config.dart';
+import 'services/backup/drive/drive_settings.dart';
 import 'services/pdf/pdf_export_service.dart';
 import 'services/shop_settings.dart';
 import 'services/sms_sender.dart';
@@ -64,6 +69,37 @@ final backupServiceProvider = Provider<BackupService>((ref) {
   return BackupService(
     repository: ref.watch(creditRepositoryProvider),
     settings: ref.watch(backupSettingsProvider),
+  );
+});
+
+/// Configuration OAuth Google Drive injectée au build.
+final driveConfigProvider = Provider<DriveConfig>((ref) {
+  return DriveConfig.fromEnvironment();
+});
+
+/// Connexion au compte Google (scope drive.file).
+final driveAuthenticatorProvider = Provider<DriveAuthenticator>((ref) {
+  return GoogleDriveAuthenticator(config: ref.watch(driveConfigProvider));
+});
+
+/// Paramètres locaux de la sauvegarde Drive.
+final driveBackupSettingsProvider = Provider<DriveBackupSettingsStore>((ref) {
+  return DriveBackupSettings();
+});
+
+/// Client REST minimal de l'API Google Drive.
+final driveApiProvider = Provider<DriveApi>((ref) {
+  return DriveRestApi(auth: ref.watch(driveAuthenticatorProvider));
+});
+
+/// Sauvegarde automatique et manuelle vers Google Drive.
+final driveBackupServiceProvider = Provider<DriveBackupService>((ref) {
+  return DriveBackupService(
+    backups: ref.watch(backupServiceProvider),
+    backupSettings: ref.watch(backupSettingsProvider),
+    settings: ref.watch(driveBackupSettingsProvider),
+    auth: ref.watch(driveAuthenticatorProvider),
+    api: ref.watch(driveApiProvider),
   );
 });
 

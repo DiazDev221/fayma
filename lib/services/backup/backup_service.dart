@@ -14,6 +14,25 @@ import 'backup_serializer.dart';
 import 'backup_settings.dart';
 import 'recovery_code.dart';
 
+/// Contenu chiffré d'une sauvegarde, avant écriture sur disque.
+class BackupData {
+  const BackupData({
+    required this.bytes,
+    required this.fileName,
+    required this.createdAt,
+    required this.clientCount,
+    required this.operationCount,
+  });
+
+  final Uint8List bytes;
+  final String fileName;
+  final DateTime createdAt;
+  final int clientCount;
+  final int operationCount;
+
+  int get byteLength => bytes.length;
+}
+
 /// Résultat d'un export, prêt à être partagé.
 class BackupExport {
   const BackupExport({
@@ -77,8 +96,10 @@ class BackupService {
 
   Future<void> markBackupDone(DateTime at) => settings.setLastBackupAt(at);
 
-  /// Crée un fichier chiffré dans le dossier temporaire de l'application.
-  Future<BackupExport> export() async {
+  /// Crée le contenu chiffré d'une sauvegarde, sans écrire de fichier.
+  ///
+  /// Utilisé par l'export vers Google Drive, qui envoie directement les octets.
+  Future<BackupData> createData() async {
     final code = await settings.ensureRecoveryCode();
     final snapshot = await repository.snapshot();
     final appVersion = await _appVersionProvider();
@@ -99,18 +120,31 @@ class BackupService {
       recoveryCode: code,
     );
 
+    return BackupData(
+      bytes: Uint8List.fromList(utf8.encode(encrypted)),
+      fileName: _fileName(createdAt),
+      createdAt: createdAt,
+      clientCount: snapshot.clientCount,
+      operationCount: snapshot.operationCount,
+    );
+  }
+
+  /// Crée un fichier chiffré dans le dossier temporaire de l'application.
+  Future<BackupExport> export() async {
+    final data = await createData();
+
     final directory = await _directoryProvider();
     await directory.create(recursive: true);
-    final file = File(p.join(directory.path, _fileName(createdAt)));
+    final file = File(p.join(directory.path, data.fileName));
     final partial = File('${file.path}.part');
-    await partial.writeAsString(encrypted, flush: true);
+    await partial.writeAsBytes(data.bytes, flush: true);
     await partial.rename(file.path);
 
     return BackupExport(
       file: file,
-      createdAt: createdAt,
-      clientCount: snapshot.clientCount,
-      operationCount: snapshot.operationCount,
+      createdAt: data.createdAt,
+      clientCount: data.clientCount,
+      operationCount: data.operationCount,
     );
   }
 
