@@ -42,11 +42,13 @@ void main() {
     await expectLater(
       crypto.decryptText(envelope, recoveryCode: 'ZZZZZZZZZZZZZZZZZZZZZZZZ'),
       throwsA(
-        isA<BackupException>().having(
-          (e) => e.message,
-          'message',
-          contains('Code incorrect'),
-        ),
+        isA<BackupException>()
+            .having(
+              (e) => e.message,
+              'message',
+              contains('Code incorrect'),
+            )
+            .having((e) => e.isWrongCode, 'isWrongCode', isTrue),
       ),
     );
   });

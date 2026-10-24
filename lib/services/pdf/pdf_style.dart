@@ -74,7 +74,9 @@ String operationTypeLabel(OperationType type) {
 
 String operationLabel(Operation operation) {
   final base = operationTypeLabel(operation.type);
-  return operation.isReversal ? 'Annulation · $base' : base;
+  final label = operation.isReversal ? 'Annulation · $base' : base;
+  final method = operation.paymentMethod;
+  return method == null ? label : '$label · ${method.label}';
 }
 
 /// En-tête sombre commun à tous les documents.

@@ -10,6 +10,7 @@ import '../theme/app_theme.dart';
 import '../utils/format.dart';
 import '../utils/share_origin.dart';
 import '../widgets/app_widgets.dart';
+import '../widgets/payment_method_selector.dart';
 
 /// Écran 03 - Fiche client : solde, actions et historique des opérations.
 class ClientDetailScreen extends ConsumerWidget {
@@ -845,6 +846,10 @@ class _HistoryRow extends StatelessWidget {
     final detail = operation.items.isNotEmpty
         ? operation.items.map((item) => item.name).join(', ')
         : operation.note;
+    final method = operation.paymentMethod;
+    final dateLine = method == null
+        ? formatDate(operation.date)
+        : '${formatDate(operation.date)} · ${method.label}';
 
     final struck = isCancelled ? TextDecoration.lineThrough : null;
     final dimmed = isCancelled ? 0.52 : 1.0;
@@ -864,7 +869,11 @@ class _HistoryRow extends StatelessWidget {
                 color: view.iconBackground,
                 borderRadius: BorderRadius.circular(12),
               ),
-              child: Icon(view.icon, size: 19, color: view.color),
+              child: method != null && !operation.isReversal
+                  ? Center(
+                      child: PaymentMethodLogo(method: method, size: 28),
+                    )
+                  : Icon(view.icon, size: 19, color: view.color),
             ),
             const SizedBox(width: 11),
             Expanded(
@@ -896,7 +905,7 @@ class _HistoryRow extends StatelessWidget {
                   ),
                   const SizedBox(height: 2),
                   Text(
-                    formatDate(operation.date),
+                    dateLine,
                     style: textTheme.bodySmall,
                   ),
                   if (detail != null && detail.isNotEmpty) ...[

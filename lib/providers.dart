@@ -69,6 +69,7 @@ final backupServiceProvider = Provider<BackupService>((ref) {
   return BackupService(
     repository: ref.watch(creditRepositoryProvider),
     settings: ref.watch(backupSettingsProvider),
+    shopSettings: ref.watch(shopSettingsProvider),
   );
 });
 

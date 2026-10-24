@@ -11,10 +11,20 @@ class DriveConfig {
     required this.iosClientId,
   });
 
+  /// Client OAuth de type « Web », utilisé comme `serverClientId` sur Android.
+  ///
+  /// Un identifiant OAuth n'est pas un secret : il est de toute façon présent
+  /// dans l'APK. Cette valeur par défaut évite qu'un APK compilé sans
+  /// `tool/drive_defines.json` perde la sauvegarde Drive. La définition
+  /// `FAYMA_GOOGLE_SERVER_CLIENT_ID` reste prioritaire si elle est fournie.
+  static const String defaultAndroidServerClientId =
+      '290957478412-ogf1pcnob31t88vl4k6mq8hcqfpak91a.apps.googleusercontent.com';
+
   factory DriveConfig.fromEnvironment() {
     return const DriveConfig(
       androidServerClientId: String.fromEnvironment(
         'FAYMA_GOOGLE_SERVER_CLIENT_ID',
+        defaultValue: defaultAndroidServerClientId,
       ),
       iosClientId: String.fromEnvironment(
         'FAYMA_GOOGLE_IOS_CLIENT_ID',

@@ -1,3 +1,4 @@
+import 'package:flutter/foundation.dart';
 import 'package:google_sign_in/google_sign_in.dart';
 
 import 'drive_config.dart';
@@ -172,6 +173,10 @@ class GoogleDriveAuthenticator implements DriveAuthenticator {
   }
 
   DriveException _translate(GoogleSignInException error) {
+    debugPrint(
+      'Connexion Google : ${error.code.name}'
+      '${error.description == null ? '' : ' — ${error.description}'}',
+    );
     return switch (error.code) {
       GoogleSignInExceptionCode.canceled => DriveException(
           'Connexion Google annulée.',
@@ -203,7 +208,8 @@ class GoogleDriveAuthenticator implements DriveAuthenticator {
           cause: error,
         ),
       _ => DriveException(
-          'La connexion à Google a échoué. Réessayez.',
+          'La connexion à Google a échoué (${error.code.name}). '
+          '${error.description ?? ''}',
           kind: DriveErrorKind.unknown,
           cause: error,
         ),

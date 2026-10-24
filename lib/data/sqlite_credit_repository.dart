@@ -4,6 +4,7 @@ import 'package:sqlite3/sqlite3.dart';
 
 import '../models/client.dart';
 import '../models/operation.dart';
+import '../models/payment_method.dart';
 import 'credit_repository.dart';
 import 'repository_snapshot.dart';
 
@@ -26,6 +27,11 @@ class SqliteCreditRepository implements CreditRepository {
   factory SqliteCreditRepository.inMemory() =>
       SqliteCreditRepository._(sqlite3.openInMemory());
 
+  static const int _databaseVersion = 2;
+
+  /// Version du contenu d'une sauvegarde. Elle ne change pas quand seule la
+  /// base locale évolue : un ajout de colonne facultative reste lisible par
+  /// les anciennes sauvegardes comme par les nouvelles.
   static const int _schemaVersion = 1;
 
   final Database _db;
@@ -35,7 +41,7 @@ class SqliteCreditRepository implements CreditRepository {
   void _migrate() {
     final current =
         _db.select('PRAGMA user_version').first['user_version'] as int;
-    if (current >= _schemaVersion) return;
+    if (current >= _databaseVersion) return;
 
     _inTransaction(() {
       if (current < 1) {
@@ -76,8 +82,15 @@ class SqliteCreditRepository implements CreditRepository {
           'CREATE INDEX idx_items_operation ON operation_items(operation_id)',
         );
       }
-      // Version suivante : ajouter ici un bloc `if (current < 2) { ... }`.
-      _db.execute('PRAGMA user_version = $_schemaVersion');
+      if (current < 2) {
+        // Moyen de paiement des dépôts et remboursements. Les opérations
+        // existantes restent à NULL : aucun moyen n'était alors enregistré.
+        _db.execute(
+          'ALTER TABLE operations ADD COLUMN payment_method TEXT',
+        );
+      }
+      // Version suivante : ajouter ici un bloc `if (current < 3) { ... }`.
+      _db.execute('PRAGMA user_version = $_databaseVersion');
     });
   }
 
@@ -133,6 +146,7 @@ class SqliteCreditRepository implements CreditRepository {
         note: row['note'] as String?,
         items: items,
         reversalOf: row['reversal_of'] as String?,
+        paymentMethod: PaymentMethod.fromName(row['payment_method'] as String?),
       );
 
   List<Client> _readClients() {
@@ -201,7 +215,7 @@ class SqliteCreditRepository implements CreditRepository {
   void _insertOperation(Operation op) {
     _db.execute(
       'INSERT INTO operations (id, client_id, type, amount, date, note, '
-      'reversal_of) VALUES (?, ?, ?, ?, ?, ?, ?)',
+      'reversal_of, payment_method) VALUES (?, ?, ?, ?, ?, ?, ?, ?)',
       [
         op.id,
         op.clientId,
@@ -210,6 +224,7 @@ class SqliteCreditRepository implements CreditRepository {
         op.date.millisecondsSinceEpoch,
         op.note,
         op.reversalOf,
+        op.paymentMethod?.name,
       ],
     );
     for (var i = 0; i < op.items.length; i++) {

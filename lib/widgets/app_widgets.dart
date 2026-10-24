@@ -475,10 +475,12 @@ class AppKeyValueRow extends StatelessWidget {
         children: [
           Expanded(child: Text(label, style: textTheme.bodySmall)),
           const SizedBox(width: 12),
-          Text(
-            value,
-            textAlign: TextAlign.right,
-            style: textTheme.titleSmall?.copyWith(color: valueColor),
+          Flexible(
+            child: Text(
+              value,
+              textAlign: TextAlign.right,
+              style: textTheme.titleSmall?.copyWith(color: valueColor),
+            ),
           ),
         ],
       ),

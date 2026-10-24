@@ -5,6 +5,7 @@ import 'package:fayma/data/repository_snapshot.dart';
 import 'package:fayma/data/sqlite_credit_repository.dart';
 import 'package:fayma/models/client.dart';
 import 'package:fayma/models/operation.dart';
+import 'package:fayma/models/payment_method.dart';
 
 Client _client() => Client(
       id: 'client-1',
@@ -74,10 +75,17 @@ void main() {
           type: OperationType.repayment,
           amount: 2000,
           date: DateTime(2026, 10, 3),
+          paymentMethod: PaymentMethod.orangeMoney,
         ),
       );
 
       final snapshot = await repo.snapshot();
+      expect(
+        snapshot.operations
+            .firstWhere((operation) => operation.id == 'repay-1')
+            .paymentMethod,
+        PaymentMethod.orangeMoney,
+      );
       final target = SqliteCreditRepository.inMemory();
       addTearDown(target.close);
 

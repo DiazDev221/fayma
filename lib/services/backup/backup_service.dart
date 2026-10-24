@@ -1,12 +1,13 @@
 import 'dart:convert';
 import 'dart:io';
-import 'dart:typed_data';
 
+import 'package:flutter/foundation.dart';
 import 'package:package_info_plus/package_info_plus.dart';
 import 'package:path/path.dart' as p;
 import 'package:path_provider/path_provider.dart';
 
 import '../../data/credit_repository.dart';
+import '../shop_settings.dart';
 import 'backup_crypto.dart';
 import 'backup_exception.dart';
 import 'backup_format.dart';
@@ -68,6 +69,7 @@ class BackupService {
   BackupService({
     required this.repository,
     required this.settings,
+    this.shopSettings,
     BackupSerializer serializer = const BackupSerializer(),
     BackupCrypto crypto = const BackupCrypto(),
     Future<Directory> Function()? directoryProvider,
@@ -82,6 +84,11 @@ class BackupService {
 
   final CreditRepository repository;
   final BackupSettingsStore settings;
+
+  /// Paramètres de la boutique, pour inclure son nom dans la sauvegarde et
+  /// le restaurer. Facultatif : les tests et les usages sans boutique
+  /// continuent de fonctionner.
+  final ShopSettingsStore? shopSettings;
 
   final BackupSerializer _serializer;
   final BackupCrypto _crypto;
@@ -105,6 +112,7 @@ class BackupService {
     final appVersion = await _appVersionProvider();
     final deviceId = await settings.deviceId();
     final shopId = await settings.shopId();
+    final shopName = await _readShopName();
     final createdAt = DateTime.now();
 
     final clear = _serializer.encode(
@@ -113,6 +121,7 @@ class BackupService {
       schemaVersion: repository.schemaVersion,
       deviceId: deviceId,
       shopId: shopId,
+      shopName: shopName,
       createdAt: createdAt,
     );
     final encrypted = await _crypto.encryptText(
@@ -258,9 +267,25 @@ class BackupService {
     try {
       await settings.setRecoveryCode(preview.recoveryCode);
       await settings.setShopId(preview.payload.shopId);
+
+      // Le nom de la boutique fait partie de la sauvegarde. Une sauvegarde
+      // ancienne (nom vide) ne doit pas effacer celui déjà saisi.
+      final shopName = preview.payload.shopName.trim();
+      if (shopName.isNotEmpty) {
+        await shopSettings?.saveShopName(shopName);
+      }
     } catch (_) {
-      // Les données sont déjà restaurées ; le code et l'identifiant de
-      // boutique ne sont que des informations de continuité.
+      // Les données sont déjà restaurées ; le code, l'identifiant de
+      // boutique et le nom ne sont que des informations de continuité.
+    }
+  }
+
+  Future<String> _readShopName() async {
+    try {
+      return (await shopSettings?.readShopName())?.trim() ?? '';
+    } catch (error) {
+      debugPrint('Lecture du nom de la boutique pour la sauvegarde : $error');
+      return '';
     }
   }
 

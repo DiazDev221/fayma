@@ -6,11 +6,13 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
 import '../models/operation.dart';
+import '../models/payment_method.dart';
 import '../providers.dart';
 import '../services/operation_sms.dart';
 import '../theme/app_theme.dart';
 import '../utils/format.dart';
 import '../widgets/app_widgets.dart';
+import '../widgets/payment_method_selector.dart';
 
 /// Écran 06 - Nouveau dépôt : le client verse une somme, imputée d'abord
 /// sur sa dette, puis conservée en avance pour ses prochains achats à crédit.
@@ -25,6 +27,7 @@ class DepositScreen extends ConsumerStatefulWidget {
 
 class _DepositScreenState extends ConsumerState<DepositScreen> {
   final _amountController = TextEditingController();
+  PaymentMethod _method = PaymentMethod.cash;
   bool _saving = false;
 
   @override
@@ -60,6 +63,7 @@ class _DepositScreenState extends ConsumerState<DepositScreen> {
       type: OperationType.deposit,
       amount: _amount,
       date: DateTime.now(),
+      paymentMethod: _method,
     );
     final sms = await prepareOperationSms(
       ref: ref,
@@ -262,6 +266,11 @@ class _DepositScreenState extends ConsumerState<DepositScreen> {
                     ),
                   ],
                 ),
+              ),
+              const SizedBox(height: 16),
+              PaymentMethodSelector(
+                value: _method,
+                onChanged: (method) => setState(() => _method = method),
               ),
               const SizedBox(height: 16),
               FaymaCard(

@@ -10,6 +10,7 @@ import 'package:fayma/services/backup/backup_crypto.dart';
 import 'package:fayma/services/backup/backup_exception.dart';
 import 'package:fayma/services/backup/backup_service.dart';
 import 'package:fayma/services/backup/backup_settings.dart';
+import 'package:fayma/services/shop_settings.dart';
 
 class _FakeSettings implements BackupSettingsStore {
   _FakeSettings({required this.code, required this.shop});
@@ -41,6 +42,25 @@ class _FakeSettings implements BackupSettingsStore {
 
   @override
   Future<void> setLastBackupAt(DateTime at) async => last = at;
+}
+
+class _FakeShopSettings implements ShopSettingsStore {
+  _FakeShopSettings({this.name = ''});
+
+  String name;
+  int? creditLimit;
+
+  @override
+  Future<String> readShopName() async => name;
+
+  @override
+  Future<void> saveShopName(String value) async => name = value;
+
+  @override
+  Future<int?> readCreditLimit() async => creditLimit;
+
+  @override
+  Future<void> saveCreditLimit(int? limit) async => creditLimit = limit;
 }
 
 Client _client() => Client(
@@ -85,9 +105,11 @@ void main() {
     await sourceRepo.addOperation(_credit());
 
     final sourceSettings = _FakeSettings(code: code, shop: 'boutique-1');
+    final sourceShop = _FakeShopSettings(name: 'Boutique Awa');
     final sourceService = BackupService(
       repository: sourceRepo,
       settings: sourceSettings,
+      shopSettings: sourceShop,
       crypto: crypto,
       directoryProvider: () async => tempDir,
       appVersionProvider: () async => '1.0.0+1',
@@ -113,9 +135,11 @@ void main() {
       code: 'ZZZZ2345ZZZZ6789ZZZZ2345',
       shop: 'boutique-2',
     );
+    final targetShop = _FakeShopSettings(name: 'Ancienne boutique');
     final targetService = BackupService(
       repository: targetRepo,
       settings: targetSettings,
+      shopSettings: targetShop,
       crypto: crypto,
       directoryProvider: () async => tempDir,
       appVersionProvider: () async => '1.0.0+1',
@@ -125,6 +149,7 @@ void main() {
     expect(preview.payload.clientCount, 1);
     expect(preview.payload.operationCount, 1);
     expect(preview.payload.shopId, 'boutique-1');
+    expect(preview.payload.shopName, 'Boutique Awa');
 
     await targetService.restore(preview);
 
@@ -133,6 +158,7 @@ void main() {
     expect(snapshot.operations, [_credit()]);
     expect(targetSettings.shop, 'boutique-1');
     expect(targetSettings.code, code);
+    expect(targetShop.name, 'Boutique Awa');
   });
 
   test('refuse un mauvais code sans toucher aux données', () async {

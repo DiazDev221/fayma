@@ -2,6 +2,7 @@ import 'dart:async';
 
 import '../models/client.dart';
 import '../models/operation.dart';
+import '../models/payment_method.dart';
 import 'credit_repository.dart';
 import 'repository_snapshot.dart';
 
@@ -52,6 +53,7 @@ class InMemoryCreditRepository implements CreditRepository {
         type: OperationType.repayment,
         amount: 5000,
         date: DateTime(2026, 10, 8),
+        paymentMethod: PaymentMethod.orangeMoney,
       ),
       Operation(
         id: 'o3',
@@ -75,6 +77,7 @@ class InMemoryCreditRepository implements CreditRepository {
         type: OperationType.deposit,
         amount: 12000,
         date: DateTime(2026, 10, 5),
+        paymentMethod: PaymentMethod.wave,
       ),
     ]);
     repo._counter = 100;

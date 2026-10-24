@@ -285,7 +285,8 @@ pw.Widget _amountPanel(Operation operation) {
               pw.Text(
                 operation.isReversal
                     ? 'Correction enregistrée dans le compte du client'
-                    : 'Paiement enregistré dans le compte du client',
+                    : 'Paiement enregistré dans le compte du client'
+                        '${operation.paymentMethod == null ? '' : ' · ${operation.paymentMethod!.label}'}',
                 style: const pw.TextStyle(
                   color: PdfStyle.textSecondary,
                   fontSize: 8,

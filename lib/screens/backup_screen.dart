@@ -186,6 +186,7 @@ class _BackupScreenState extends ConsumerState<BackupScreen> {
     setState(() => _busy = true);
     try {
       await ref.read(backupServiceProvider).restore(preview);
+      ref.invalidate(shopNameProvider);
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(content: Text('Sauvegarde restaurée.')),
@@ -338,15 +339,13 @@ class _BackupScreenState extends ConsumerState<BackupScreen> {
     final selected = await _pickRemoteBackup(files);
     if (selected == null || !mounted) return;
 
-    final code = await _askRecoveryCode();
-    if (code == null || !mounted) return;
-
-    setState(() => _busy = true);
+    // Sur le même téléphone, le code de récupération est déjà dans le
+    // trousseau sécurisé : on l'utilise sans rien demander. Il n'est
+    // réclamé que s'il ne correspond pas (réinstallation, autre appareil).
     BackupPreview? preview;
+    setState(() => _busy = true);
     try {
-      preview = await ref
-          .read(driveBackupServiceProvider)
-          .inspectRemote(selected, code, interactive: true);
+      preview = await _inspectWithStoredCode(selected);
     } on BackupException catch (error) {
       _showMessage(error.message);
       return;
@@ -362,12 +361,43 @@ class _BackupScreenState extends ConsumerState<BackupScreen> {
     }
     if (!mounted) return;
 
+    if (preview == null) {
+      final code = await _askRecoveryCode(
+        message: _code == null
+            ? null
+            : 'Le code enregistré sur ce téléphone ne correspond pas à '
+                'cette sauvegarde. Saisissez son code de récupération.',
+      );
+      if (code == null || !mounted) return;
+
+      setState(() => _busy = true);
+      try {
+        preview = await ref
+            .read(driveBackupServiceProvider)
+            .inspectRemote(selected, code, interactive: true);
+      } on BackupException catch (error) {
+        _showMessage(error.message);
+        return;
+      } on DriveException catch (error) {
+        _showMessage(error.message);
+        return;
+      } catch (error) {
+        debugPrint('Téléchargement de la sauvegarde Drive : $error');
+        _showMessage('Impossible de télécharger cette sauvegarde.');
+        return;
+      } finally {
+        if (mounted) setState(() => _busy = false);
+      }
+      if (!mounted) return;
+    }
+
     final confirmed = await _confirmRestore(preview);
     if (confirmed != true || !mounted) return;
 
     setState(() => _busy = true);
     try {
       await ref.read(backupServiceProvider).restore(preview);
+      ref.invalidate(shopNameProvider);
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(content: Text('Sauvegarde restaurée depuis Drive.')),
@@ -451,10 +481,35 @@ class _BackupScreenState extends ConsumerState<BackupScreen> {
     );
   }
 
-  Future<String?> _askRecoveryCode() {
+  /// Télécharge et déchiffre [file] avec le code déjà enregistré.
+  ///
+  /// Retourne null si aucun code local n'est disponible ou si celui-ci ne
+  /// correspond pas à la sauvegarde : l'appelant demande alors le code.
+  Future<BackupPreview?> _inspectWithStoredCode(DriveBackupFile file) async {
+    var code = _code;
+    if (code == null) {
+      try {
+        code = await ref.read(backupServiceProvider).recoveryCode();
+      } catch (error) {
+        debugPrint('Lecture du code de récupération : $error');
+      }
+    }
+    if (code == null || code.isEmpty) return null;
+
+    try {
+      return await ref
+          .read(driveBackupServiceProvider)
+          .inspectRemote(file, code, interactive: true);
+    } on BackupException catch (error) {
+      if (error.isWrongCode) return null;
+      rethrow;
+    }
+  }
+
+  Future<String?> _askRecoveryCode({String? message}) {
     return showDialog<String>(
       context: context,
-      builder: (_) => const _RecoveryCodeDialog(),
+      builder: (_) => _RecoveryCodeDialog(message: message),
     );
   }
 
@@ -485,6 +540,13 @@ class _BackupScreenState extends ConsumerState<BackupScreen> {
                       label: 'Date',
                       value: formatDate(payload.createdAt),
                     ),
+                    if (payload.shopName.trim().isNotEmpty) ...[
+                      const Divider(),
+                      AppKeyValueRow(
+                        label: 'Boutique',
+                        value: payload.shopName.trim(),
+                      ),
+                    ],
                     const Divider(),
                     AppKeyValueRow(
                       label: 'Version',
@@ -657,7 +719,11 @@ class _BackupScreenState extends ConsumerState<BackupScreen> {
 }
 
 class _RecoveryCodeDialog extends StatefulWidget {
-  const _RecoveryCodeDialog();
+  const _RecoveryCodeDialog({this.message});
+
+  /// Explication affichée au-dessus du champ, par exemple lorsque le code
+  /// enregistré sur l'appareil ne correspond pas.
+  final String? message;
 
   @override
   State<_RecoveryCodeDialog> createState() => _RecoveryCodeDialogState();
@@ -691,6 +757,33 @@ class _RecoveryCodeDialogState extends State<_RecoveryCodeDialog> {
           mainAxisSize: MainAxisSize.min,
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
+            if (widget.message != null) ...[
+              Container(
+                padding: const EdgeInsets.all(11),
+                decoration: BoxDecoration(
+                  color: AppColors.coral.withValues(alpha: 0.1),
+                  borderRadius: BorderRadius.circular(12),
+                ),
+                child: Row(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    const Icon(
+                      Icons.info_outline,
+                      size: 17,
+                      color: AppColors.coral,
+                    ),
+                    const SizedBox(width: 7),
+                    Expanded(
+                      child: Text(
+                        widget.message!,
+                        style: Theme.of(context).textTheme.bodySmall,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              const SizedBox(height: 12),
+            ],
             Text(
               'Saisissez le code qui accompagnait cette sauvegarde.',
               style: Theme.of(context).textTheme.bodySmall,

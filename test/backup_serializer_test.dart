@@ -5,6 +5,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:fayma/data/repository_snapshot.dart';
 import 'package:fayma/models/client.dart';
 import 'package:fayma/models/operation.dart';
+import 'package:fayma/models/payment_method.dart';
 import 'package:fayma/services/backup/backup_exception.dart';
 import 'package:fayma/services/backup/backup_serializer.dart';
 
@@ -49,6 +50,7 @@ RepositorySnapshot _snapshot() {
         type: OperationType.repayment,
         amount: 5000,
         date: DateTime(2026, 10, 3),
+        paymentMethod: PaymentMethod.orangeMoney,
       ),
       Operation(
         id: 'op-4',
@@ -56,6 +58,7 @@ RepositorySnapshot _snapshot() {
         type: OperationType.deposit,
         amount: 12000,
         date: DateTime(2026, 10, 4),
+        paymentMethod: PaymentMethod.wave,
       ),
     ],
   );
@@ -75,6 +78,7 @@ void main() {
       schemaVersion: 1,
       deviceId: 'appareil-1',
       shopId: 'boutique-1',
+      shopName: 'Boutique Awa',
       createdAt: DateTime(2026, 10, 21, 12, 30),
     );
 
@@ -84,11 +88,42 @@ void main() {
     expect(payload.schemaVersion, 1);
     expect(payload.deviceId, 'appareil-1');
     expect(payload.shopId, 'boutique-1');
+    expect(payload.shopName, 'Boutique Awa');
     expect(payload.createdAt, DateTime(2026, 10, 21, 12, 30));
     expect(payload.clientCount, 2);
     expect(payload.operationCount, 4);
     expect(payload.clients, snapshot.clients);
     expect(payload.operations, snapshot.operations);
+    expect(
+      payload.operations
+          .firstWhere((operation) => operation.id == 'op-4')
+          .paymentMethod,
+      PaymentMethod.wave,
+    );
+  });
+
+  test('lit une ancienne sauvegarde sans boutique ni moyen de paiement', () {
+    final json = _decoded(
+      serializer.encode(
+        snapshot: _snapshot(),
+        appVersion: '1',
+        schemaVersion: 1,
+        deviceId: 'd',
+        shopId: 's',
+      ),
+    );
+    json.remove('shop_name');
+    for (final operation in json['operations'] as List<dynamic>) {
+      (operation as Map<String, dynamic>).remove('payment_method');
+    }
+
+    final payload = serializer.decode(jsonEncode(json));
+
+    expect(payload.shopName, '');
+    expect(
+      payload.operations.every((operation) => operation.paymentMethod == null),
+      isTrue,
+    );
   });
 
   test('refuse un format inconnu', () {

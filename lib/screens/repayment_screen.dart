@@ -4,11 +4,13 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
 import '../models/operation.dart';
+import '../models/payment_method.dart';
 import '../providers.dart';
 import '../services/operation_sms.dart';
 import '../theme/app_theme.dart';
 import '../utils/format.dart';
 import '../widgets/app_widgets.dart';
+import '../widgets/payment_method_selector.dart';
 
 /// Écran 05 - Remboursement : le client paie tout ou partie de sa dette.
 class RepaymentScreen extends ConsumerStatefulWidget {
@@ -22,6 +24,7 @@ class RepaymentScreen extends ConsumerStatefulWidget {
 
 class _RepaymentScreenState extends ConsumerState<RepaymentScreen> {
   final _amountController = TextEditingController();
+  PaymentMethod _method = PaymentMethod.cash;
   bool _saving = false;
 
   @override
@@ -57,6 +60,7 @@ class _RepaymentScreenState extends ConsumerState<RepaymentScreen> {
       type: OperationType.repayment,
       amount: _amount,
       date: DateTime.now(),
+      paymentMethod: _method,
     );
     final sms = await prepareOperationSms(
       ref: ref,
@@ -268,6 +272,11 @@ class _RepaymentScreenState extends ConsumerState<RepaymentScreen> {
                     ],
                   ],
                 ),
+              ),
+              const SizedBox(height: 16),
+              PaymentMethodSelector(
+                value: _method,
+                onChanged: (method) => setState(() => _method = method),
               ),
               const SizedBox(height: 16),
               FaymaCard(

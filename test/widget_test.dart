@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:intl/date_symbol_data_local.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 
 import 'package:fayma/data/in_memory_credit_repository.dart';
 import 'package:fayma/main.dart';
@@ -36,6 +37,7 @@ class _FakeBackupSettings implements BackupSettingsStore {
 
 void main() {
   setUpAll(() async {
+    SharedPreferences.setMockInitialValues({});
     await initializeDateFormatting('fr_FR');
   });
 

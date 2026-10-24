@@ -1,5 +1,7 @@
 import 'package:flutter/foundation.dart';
 
+import 'payment_method.dart';
+
 /// Les trois mouvements possibles sur le compte d'un client.
 enum OperationType {
   /// Achat à crédit : augmente ce que le client doit.
@@ -46,7 +48,12 @@ class Operation {
     this.note,
     this.items = const [],
     this.reversalOf,
-  }) : assert(amount > 0, 'Le montant doit être positif');
+    this.paymentMethod,
+  })  : assert(amount > 0, 'Le montant doit être positif'),
+        assert(
+          paymentMethod == null || type != OperationType.credit,
+          'Un achat à crédit n\'a pas de moyen de paiement',
+        );
 
   /// Achat à crédit : le montant est la somme des lignes.
   factory Operation.purchase({
@@ -84,6 +91,7 @@ class Operation {
       date: date,
       note: note,
       reversalOf: original.id,
+      paymentMethod: original.paymentMethod,
     );
   }
 
@@ -103,6 +111,12 @@ class Operation {
   /// Id de l'opération annulée, si celle-ci est une annulation.
   final String? reversalOf;
 
+  /// Moyen de paiement d'un dépôt ou d'un remboursement.
+  ///
+  /// Null pour un achat à crédit, pour une opération enregistrée avant
+  /// l'arrivée de cette information, ou si le commerçant ne l'a pas précisée.
+  final PaymentMethod? paymentMethod;
+
   bool get isReversal => reversalOf != null;
 
   /// +1 pour une opération normale, -1 pour une annulation.
@@ -118,7 +132,8 @@ class Operation {
       other.date == date &&
       other.note == note &&
       listEquals(other.items, items) &&
-      other.reversalOf == reversalOf;
+      other.reversalOf == reversalOf &&
+      other.paymentMethod == paymentMethod;
 
   @override
   int get hashCode => Object.hash(
@@ -130,5 +145,6 @@ class Operation {
         note,
         Object.hashAll(items),
         reversalOf,
+        paymentMethod,
       );
 }

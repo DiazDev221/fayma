@@ -152,6 +152,32 @@ rappel n'apparaît pas dans l'historique des opérations.
 - Le nom saisi dans **Ma boutique** apparaît en signature des SMS envoyés
   après chaque achat, remboursement ou dépôt.
 
+## Moyens de paiement
+
+Chaque **dépôt** et chaque **remboursement** indique le moyen utilisé par le
+client :
+
+- **Espèces** — billets et pièces remis à la boutique ;
+- **Orange Money** — paiement reçu sur le compte Orange Money de la boutique ;
+- **Wave** — paiement reçu sur le compte Wave de la boutique.
+
+Le sélecteur apparaît dans les écrans **Nouveau dépôt** et **Remboursement**,
+avec les logos Orange Money et Wave embarqués dans l'application (aucune
+connexion nécessaire). **Espèces** est sélectionné par défaut ; touchez une
+tuile pour changer de moyen avant d'enregistrer.
+
+Le moyen choisi est ensuite visible :
+
+- dans l'historique de la fiche client, à côté de la date, avec le logo
+  correspondant ;
+- sur les reçus PDF de dépôt et de remboursement ;
+- dans le journal du **Rapport général PDF**.
+
+Un achat à crédit n'a pas de moyen de paiement. Les opérations enregistrées
+avant cette version restent affichées normalement, simplement sans moyen
+précisé. La base SQLite passe automatiquement en version 2 au premier
+lancement : aucune action n'est demandée et aucune donnée n'est perdue.
+
 ## Sauvegarde chiffrée
 
 Depuis l'écran d'accueil, le bouton en haut à droite ouvre **Sauvegarde**.
@@ -163,14 +189,24 @@ Depuis l'écran d'accueil, le bouton en haut à droite ouvre **Sauvegarde**.
 - **Exporter une sauvegarde** crée un fichier `.fayma` chiffré avec
   Argon2id + AES-256-GCM, puis ouvre la feuille de partage du téléphone. Le
   fichier peut être envoyé vers Files, un e-mail, etc.
+- La sauvegarde contient **toutes les données de la boutique** : clients,
+  opérations (avec leur moyen de paiement) et **nom de la boutique**. Ce nom
+  est restauré en même temps que les données ; s'il est vide dans une ancienne
+  sauvegarde, le nom déjà saisi sur le téléphone est conservé.
 - **Sauvegarde Google Drive** envoie automatiquement le même fichier chiffré
   une fois par 24 h, et permet de restaurer une sauvegarde déjà présente dans
   le Drive du commerçant.
-- **Restaurer une sauvegarde** demande le code de récupération, vérifie le
-  fichier, puis remplace toutes les données dans une transaction SQLite. En
-  cas d'erreur, les données existantes restent intactes.
+- **Restaurer une sauvegarde** importée depuis un fichier demande le code de
+  récupération, vérifie le fichier, puis remplace toutes les données dans une
+  transaction SQLite. Depuis Drive, le code enregistré sur le téléphone est
+  utilisé automatiquement. En cas d'erreur, les données existantes restent
+  intactes.
 - Sans le code de récupération, une sauvegarde est définitivement illisible :
   il n'existe aucun serveur ni clé de secours chez Fayma.
+- Les sauvegardes créées par une version antérieure restent restaurables : le
+  nom de boutique et le moyen de paiement, absents du fichier, sont simplement
+  laissés vides. Le format de données reste en version 1 pour préserver cette
+  compatibilité.
 
 La sauvegarde automatique Android est désactivée (`android:allowBackup="false"`)
 pour éviter des copies non maîtrisées et des erreurs de Keystore. Seuls les
@@ -201,6 +237,10 @@ Fonctionnement :
   téléphone ne sont pas touchées ;
 - le **code de récupération** reste indispensable pour restaurer un fichier ;
   il n'est jamais envoyé sur Drive ;
+- sur le même téléphone, la restauration Drive utilise **automatiquement le
+  code enregistré** dans le trousseau sécurisé : aucune saisie n'est demandée.
+  Le code n'est réclamé que s'il ne correspond pas à la sauvegarde choisie
+  (réinstallation, nouveau téléphone) ou pour l'import manuel d'un fichier ;
 - la déconnexion de Google Drive désactive la sauvegarde automatique et
   supprime la session locale, sans effacer les fichiers déjà envoyés.
 
@@ -282,6 +322,12 @@ La création du projet Google Cloud et du client OAuth est également gratuite.
    identifiants ne sont pas des secrets ; ne mettez jamais de client secret
    dans l'application.
 
+   Le client Web actuel est aussi la valeur par défaut dans
+   `lib/services/backup/drive/drive_config.dart` : un APK Android compilé sans
+   `tool/drive_defines.json` reste donc connectable. La définition
+   `FAYMA_GOOGLE_SERVER_CLIENT_ID` reste prioritaire. Le client iOS, lui, doit
+   toujours être fourni.
+
 6. Lancez l'application avec les définitions :
 
    ```bash
@@ -292,9 +338,9 @@ La création du projet Google Cloud et du client OAuth est également gratuite.
    `tool/drive_defines.json` s'il existe.
 
    Important : les identifiants sont injectés **à la compilation**, pas à
-   l'installation. Un APK compilé sans `tool/drive_defines.json` affiche
-   « Google Drive non configuré » même après avoir été installé ; il faut
-   reconstruire l'APK avec le fichier de définitions.
+   l'installation. Sur Android, le client Web est désormais la valeur par
+   défaut du code : un APK compilé sans fichier de définitions reste
+   fonctionnel. Sur iOS, le client iOS doit être fourni à la compilation.
 
 7. Ouvrez **Sauvegarde** → **Connecter Google Drive**, choisissez le compte,
    puis autorisez l'accès. La sauvegarde automatique est activée après la
@@ -320,15 +366,18 @@ Points à contrôler sur un appareil réel :
 
 - le dossier **Sauvegardes Fayma** apparaît à la racine du Drive ;
 - une sauvegarde manuelle puis automatique créent des fichiers `.fayma` ;
-- la restauration depuis Drive demande le code de récupération et remplace
-  bien les données ;
+- la restauration depuis Drive **ne demande pas** le code sur le téléphone
+  qui a créé la sauvegarde, et le demande sur un autre téléphone ; elle
+  remplace bien les données ;
 - après une réinstallation, la reconnexion au même compte retrouve les
   sauvegardes du dossier.
 
 ### Dépannage de la connexion
 
-- **« Google Drive non configuré »** : l'APK a été compilé sans
-  `tool/drive_defines.json`. Reconstruisez-le avec le fichier de définitions.
+- **« Google Drive non configuré »** : sur iOS, l'APK/IPA a été compilé sans
+  client OAuth ; sur Android, vérifiez la valeur par défaut de
+  `lib/services/backup/drive/drive_config.dart` ou `tool/drive_defines.json`,
+  puis reconstruisez.
 - **Erreur 10 / `DEVELOPER_ERROR`** : le client OAuth Android est absent, ou
   son package / SHA-1 ne correspond pas à l'APK installé. Vérifiez
   `com.fayma.app` et l'empreinte release donnée par `tool/android_sha1.sh`.

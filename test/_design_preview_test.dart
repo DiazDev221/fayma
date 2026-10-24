@@ -6,6 +6,7 @@ import 'package:flutter_localizations/flutter_localizations.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:intl/date_symbol_data_local.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 
 import 'package:fayma/data/in_memory_credit_repository.dart';
 import 'package:fayma/providers.dart';
@@ -71,6 +72,7 @@ Widget _wrap(Widget child) {
 void main() {
   setUpAll(() async {
     TestWidgetsFlutterBinding.ensureInitialized();
+    SharedPreferences.setMockInitialValues({});
     await initializeDateFormatting('fr_FR');
     final loader = FontLoader('Manrope');
     for (final name in [

@@ -3,6 +3,7 @@ import 'dart:convert';
 import '../../data/repository_snapshot.dart';
 import '../../models/client.dart';
 import '../../models/operation.dart';
+import '../../models/payment_method.dart';
 import 'backup_exception.dart';
 import 'backup_format.dart';
 
@@ -14,6 +15,7 @@ class BackupPayload {
     required this.schemaVersion,
     required this.deviceId,
     required this.shopId,
+    this.shopName = '',
     required this.clients,
     required this.operations,
   });
@@ -23,6 +25,12 @@ class BackupPayload {
   final int schemaVersion;
   final String deviceId;
   final String shopId;
+
+  /// Nom de la boutique au moment de la sauvegarde.
+  ///
+  /// Vide pour les sauvegardes créées avant que ce champ n'existe.
+  final String shopName;
+
   final List<Client> clients;
   final List<Operation> operations;
 
@@ -47,6 +55,7 @@ class BackupSerializer {
     required int schemaVersion,
     required String deviceId,
     required String shopId,
+    String shopName = '',
     DateTime? createdAt,
   }) {
     final created = (createdAt ?? DateTime.now()).toUtc();
@@ -58,6 +67,7 @@ class BackupSerializer {
       'created_at': created.toIso8601String(),
       'device_id': deviceId,
       'shop_id': shopId,
+      'shop_name': shopName.trim(),
       'counts': {
         'clients': snapshot.clientCount,
         'operations': snapshot.operationCount,
@@ -109,6 +119,7 @@ class BackupSerializer {
     final appVersion = _asString(root['app_version'], 'app_version');
     final deviceId = _asString(root['device_id'], 'device_id');
     final shopId = _asString(root['shop_id'], 'shop_id');
+    final shopName = _asOptionalString(root['shop_name'], 'shop_name');
 
     final clientJson = _asList(root['clients'], 'clients');
     final operationJson = _asList(root['operations'], 'operations');
@@ -203,6 +214,7 @@ class BackupSerializer {
       schemaVersion: schemaVersion,
       deviceId: deviceId,
       shopId: shopId,
+      shopName: shopName,
       clients: List.unmodifiable(clients),
       operations: List.unmodifiable(operations),
     );
@@ -225,6 +237,8 @@ class BackupSerializer {
         'date': operation.date.toUtc().toIso8601String(),
         if (operation.note != null) 'note': operation.note,
         if (operation.reversalOf != null) 'reversal_of': operation.reversalOf,
+        if (operation.paymentMethod != null)
+          'payment_method': operation.paymentMethod!.name,
         if (operation.items.isNotEmpty)
           'items': [
             for (final item in operation.items)
@@ -285,11 +299,15 @@ class BackupSerializer {
 
     final note = json['note'];
     final reversalOf = json['reversal_of'];
+    final paymentMethodName = json['payment_method'];
     if (note != null && note is! String) {
       throw BackupException('Note invalide pour $path.');
     }
     if (reversalOf != null && reversalOf is! String) {
       throw BackupException('Référence d\'annulation invalide pour $path.');
+    }
+    if (paymentMethodName != null && paymentMethodName is! String) {
+      throw BackupException('Moyen de paiement invalide pour $path.');
     }
 
     return Operation(
@@ -301,6 +319,7 @@ class BackupSerializer {
       note: note as String?,
       items: List.unmodifiable(items),
       reversalOf: reversalOf as String?,
+      paymentMethod: PaymentMethod.fromName(paymentMethodName as String?),
     );
   }
 
@@ -320,6 +339,13 @@ class BackupSerializer {
   String _asString(Object? value, String field) {
     if (value is String) return value;
     throw BackupException('Champ manquant ou invalide : $field.');
+  }
+
+  /// Chaîne facultative : absente ou nulle devient une chaîne vide.
+  String _asOptionalString(Object? value, String field) {
+    if (value == null) return '';
+    if (value is String) return value;
+    throw BackupException('Champ invalide : $field.');
   }
 
   int _asInt(Object? value, String field) {

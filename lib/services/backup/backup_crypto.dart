@@ -163,6 +163,7 @@ class BackupCrypto {
       throw BackupException(
         'Code incorrect, ou fichier de sauvegarde endommagé.',
         cause: error,
+        isWrongCode: true,
       );
     } on FormatException catch (error) {
       throw BackupException(
